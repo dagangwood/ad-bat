@@ -1,6 +1,61 @@
 #include <ntddk.h>
 
+//////////////////////////////////////////////////////////////////////////
+//宏定义、全局变量声明部分
+//////////////////////////////////////////////////////////////////////////
+
+//Hook函数个数
+#define HOOKNUMS	18
+
+struct Hook{
+ULONG	OrgFunc,	//原始函数地址 ZwXXXX
+ULONG	NewFunc,	//替换函数地址
+ULONG	NtFunc		//保存原始函数地址
+};
+
+
+
+//////////////////////////////////////////////////////////////////////////
+//函数声明部分
+//////////////////////////////////////////////////////////////////////////
+
+//驱动卸载函数
+VOID OnUnload(IN PDRIVER_OBJECT DriverObject);
+//初始化SSDT HOOK
+NTSTATUS InitSsdtHook();
+
+
+
+
+
+
+
+
+
+#define NtLoadDriver			0x00
+#define	NtCreateKey				0x01
+#define NtSetValueKey			0x02
+#define NtDeleteKey				0x03
+#define NtDeleteVauleKey		0x04
+#define NtCreateFile			0x05
+#define NtWriteFile				0x06
+#define NtSetInformationFile	0x07
+#define NtOpenProcess			0x08
+#define NtCreateProcess			0x09
+#define NtCreateProcessEx		0x0A
+#define NtTerminateProcess		0x0B
+#define NtCreateThread			0x0C
+#define NtTerminateThread		0x0E
+#define NtQueueApcThread		0x0F
+#define NtWriteVirtualMemory	0x10
+#define NtSetSystemInformation	0x11
+
+
+
+
+
 //	NtCreateKey()
+
 typedef NTSTATUS (*NTCREATEKEY)(__out PHANDLE KeyHandle, 
 					            __in ACCESS_MASK DesiredAccess, 
 								__in POBJECT_ATTRIBUTES ObjectAttributes, 
@@ -117,4 +172,7 @@ typedef NTSTATUS (*NTLOADDRIVER)(__in PUNICODE_STRING DriverServiceName);
 typedef NTSTATUS (*NTSETSYSTEMINFORMATION)(IN SYSTEM_INFORMATION_CLASS SystemInformationClass,
 										   IN OUT PVOID SystemInformation,
 										   IN ULONG SystemInformationLength);
+
+
+
 
