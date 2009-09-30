@@ -1,0 +1,124 @@
+
+  <Object type="ControlLibrary.UIForm, ControlLibrary, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" name="UIForm1" children="Controls">
+    <Object type="ControlLibrary.UIButton, ControlLibrary, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" name="UIButton2" children="Controls">
+      <Property name="Anchor">Top, Bottom, Left, Right</Property>
+      <Property name="DisplayName">UIButton2</Property>
+      <Property name="Size">82, 28</Property>
+      <Property name="BeforeScaleLocation">0, 0</Property>
+      <Property name="DisplayText">按钮</Property>
+      <Property name="ScaleFlag">0</Property>
+      <Property name="BeforeScaleSize">0, 0</Property>
+      <Property name="Text">Done!</Property>
+      <Property name="Name">UIButton2</Property>
+      <Property name="UseVisualStyleBackColor">True</Property>
+      <Property name="ForeColor">0, 0, 0</Property>
+      <Property name="BeforeScaleFont" />
+      <Property name="Location">177, 260</Property>
+      <Property name="DataBindings">
+        <Property name="DefaultDataSourceUpdateMode">OnValidation</Property>
+      </Property>
+      <Property name="ToolTipsData" />
+      <Property name="TabIndex">0</Property>
+      <Property name="Font">Courier New, 9pt</Property>
+    </Object>
+    <Object type="ControlLibrary.UIRadioButton, ControlLibrary, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" name="UIRadioButton3" children="Controls">
+      <Property name="DisplayText">单选按钮</Property>
+      <Property name="DisplayName">UIRadioButton3</Property>
+      <Property name="UseVisualStyleBackColor">False</Property>
+      <Property name="Font">Courier New, 9pt</Property>
+      <Property name="BackColor">Transparent</Property>
+      <Property name="Size">137, 19</Property>
+      <Property name="TabIndex">3</Property>
+      <Property name="Text">Next Time Ask Me</Property>
+      <Property name="Location">12, 252</Property>
+      <Property name="DataBindings">
+        <Property name="DefaultDataSourceUpdateMode">OnValidation</Property>
+      </Property>
+      <Property name="Name">UIRadioButton3</Property>
+      <Property name="ForeColor">Black</Property>
+      <Property name="ToolTipsData" />
+    </Object>
+    <Object type="ControlLibrary.UIRadioButton, ControlLibrary, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" name="UIRadioButton2" children="Controls">
+      <Property name="DisplayText">单选按钮</Property>
+      <Property name="DisplayName">UIRadioButton2</Property>
+      <Property name="UseVisualStyleBackColor">False</Property>
+      <Property name="Font">Courier New, 9pt</Property>
+      <Property name="BackColor">Transparent</Property>
+      <Property name="Size">53, 19</Property>
+      <Property name="TabIndex">2</Property>
+      <Property name="Text">Pass</Property>
+      <Property name="Location">111, 227</Property>
+      <Property name="DataBindings">
+        <Property name="DefaultDataSourceUpdateMode">OnValidation</Property>
+      </Property>
+      <Property name="Name">UIRadioButton2</Property>
+      <Property name="ForeColor">Black</Property>
+      <Property name="ToolTipsData" />
+    </Object>
+    <Object type="ControlLibrary.UIRadioButton, ControlLibrary, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" name="UIRadioButton1" children="Controls">
+      <Property name="DisplayText">单选按钮</Property>
+      <Property name="DisplayName">UIRadioButton1</Property>
+      <Property name="UseVisualStyleBackColor">False</Property>
+      <Property name="Font">Courier New, 9pt</Property>
+      <Property name="BackColor">Transparent</Property>
+      <Property name="Size">53, 19</Property>
+      <Property name="TabIndex">1</Property>
+      <Property name="Text">Deny</Property>
+      <Property name="Checked">True</Property>
+      <Property name="Location">12, 227</Property>
+      <Property name="TabStop">True</Property>
+      <Property name="DataBindings">
+        <Property name="DefaultDataSourceUpdateMode">OnValidation</Property>
+      </Property>
+      <Property name="Name">UIRadioButton1</Property>
+      <Property name="ForeColor">Black</Property>
+      <Property name="ToolTipsData" />
+    </Object>
+    <Object type="ControlLibrary.UITextBox, ControlLibrary, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" name="UITextBox1" children="Controls">
+      <Property name="Dock">Top</Property>
+      <Property name="Multiline">True</Property>
+      <Property name="DisplayName">UITextBox1</Property>
+      <Property name="Size">271, 221</Property>
+      <Property name="DataBindings">
+        <Property name="DefaultDataSourceUpdateMode">OnValidation</Property>
+      </Property>
+      <Property name="DisplayText">文本框</Property>
+      <Property name="ScrollBars">Vertical</Property>
+      <Property name="Text">Name: Ad-BAT.exe
+
+Action: Process Start
+
+Regedit:
+HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run
+
+Rem: 
+A Non-System Process is Under Going,I'm so sorry that Ad-BAT cannot decide it intelligently! 
+
+Advice:
+Deny it!</Property>
+      <Property name="Font">Courier New, 9pt</Property>
+      <Property name="ForeColor">Black</Property>
+      <Property name="BackColor">White</Property>
+      <Property name="Location">0, 0</Property>
+      <Property name="ToolTipsData" />
+      <Property name="Name">UITextBox1</Property>
+      <Property name="TabIndex">0</Property>
+    </Object>
+    <Property name="FormBorderStyle">FixedSingle</Property>
+    <Property name="ShowInTaskbar">False</Property>
+    <Property name="DisplayName">主窗体</Property>
+    <Property name="MaximizeBox">False</Property>
+    <Property name="Text">Ad-BAT,Your Decision!</Property>
+    <Property name="ClientSize">271, 300</Property>
+    <Property name="Location">15, 15</Property>
+    <Property name="MinimizeBox">False</Property>
+    <Property name="BackColor">236, 233, 216</Property>
+    <Property name="ForeColor">Black</Property>
+    <Property name="Name">UIForm1</Property>
+    <Property name="Font">Courier New, 9pt</Property>
+    <Property name="ShowIcon">False</Property>
+    <Property name="DataBindings">
+      <Property name="DefaultDataSourceUpdateMode">OnValidation</Property>
+    </Property>
+  </Object>
+<Event source="UIButton2" dest="null" action="单击(Click)" property="Close" solution="" enable="true" type="together0" eventID="01"></Event>
