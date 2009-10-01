@@ -5,7 +5,7 @@
 
 //行为记录的格式，暂定..
 struct Event{
-	int		type;//File==1 Process==2 Registry==3 Information==4
+	int		type;//Process==1 Registry==2 File==3 Information==4
 	int		behavior;//操作行为，例如进程具有创建、销毁；注册表具有读、写、创建、修改等
 	unsigned long pid;//对应各种操作的进程PID
 	UNICODE_STRING	target;//对应操作目标	
@@ -40,7 +40,7 @@ struct Event{
 #define NtQueueApcThread		0x0F
 #define NtWriteVirtualMemory	0x10
 #define NtSetSystemInformation	0x11
-
+#define NtDuplicateObject		0x12
 
 
 struct Reply{
