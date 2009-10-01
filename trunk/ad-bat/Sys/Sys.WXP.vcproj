@@ -56,6 +56,7 @@
 		</Configuration>
 		<Configuration
 			Name="WXP checked (PREfast)|Win32"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory=".\"
 			ConfigurationType="0"
 			InheritedPropertySheets=".\Sys.vsprops"
@@ -151,6 +152,10 @@
 			Name="Header Files"
 			Filter="h;hpp;hxx"
 			>
+			<File
+				RelativePath=".\Structs.h"
+				>
+			</File>
 			<File
 				RelativePath=".\Sys.h"
 				>
