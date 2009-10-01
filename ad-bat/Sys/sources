@@ -1,7 +1,7 @@
 # $Id$
 TARGETNAME=Sys
 TARGETPATH=obj
-TARGETTYPE=
+TARGETTYPE=DRIVER
 
 # Create browse info
 #BROWSER_INFO=1
@@ -10,4 +10,5 @@ TARGETTYPE=
 # Additional defines for the C/C++ preprocessor
 C_DEFINES=$(C_DEFINES)
 
-SOURCES=
+SOURCES= Sys.c 
+		 
