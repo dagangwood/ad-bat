@@ -4,15 +4,39 @@
 //宏定义、全局变量声明部分
 //////////////////////////////////////////////////////////////////////////
 
+
 //Hook函数个数
-#define HOOKNUMS	18
+#define HOOKNUMS	19
 
 struct Hook{
-ULONG	OrgFunc,	//原始函数地址 ZwXXXX
-ULONG	NewFunc,	//替换函数地址
-ULONG	NtFunc		//保存原始函数地址
+	ULONG	OrgFunc,	//原始函数地址 ZwXXXX
+	ULONG	NewFunc,	//替换函数地址
+	ULONG	NtFunc		//保存原始函数地址
 };
 
+
+//导出全局变量 SSDT 表
+#pragma pack(1)
+typedef struct ServiceDescriptorEntry {
+	UINT	*ServiceTableBase;
+	UINT	*ServiceCounterTableBase;
+	UINT	NumberOfServices;
+	UCHAR	*ParamTableBase;
+} ServiceDescriptorTableEntry_t, *PServiceDescriptorTableEntry_t;
+#pragma pack()
+__declspec(dllimport) ServiceDescriptorTableEntry_t KeServiceDescriptorTable;
+
+//可写的SSDT表的首地址
+PVOID* NewSystemCall;
+
+
+//SSDT Hook 功能的三个宏定义
+//ZwXXXX mov eax,(NtNums)
+#define HOOK_INDEX(Zw2Nt)				*(PULONG)((PUCHAR)Zw2Nt+1)
+
+#define HOOK(OrgFunc,NewFunc,NtFunc)	NtFunc = (PVOID)InterlockedExchange((PLONG)&NewSystemCall[HOOK_INDEX(OrgFunc)],(LONG)NewFunc)
+
+#define UNHOOK(OrgFunc,NtFunc)			InterlockedExchange((PLONG) NewSystemCall[HOOK_INDEX(OrgFunc)],(LONG)NtFunc)
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -23,6 +47,8 @@ ULONG	NtFunc		//保存原始函数地址
 VOID OnUnload(IN PDRIVER_OBJECT DriverObject);
 //初始化SSDT HOOK
 NTSTATUS InitSsdtHook();
+//打开全部SSDT HOOK
+NTSTATUS SsdtHook(Hook* pInfo,BOOLEAN bFlag);
 
 
 
@@ -49,7 +75,7 @@ NTSTATUS InitSsdtHook();
 #define NtQueueApcThread		0x0F
 #define NtWriteVirtualMemory	0x10
 #define NtSetSystemInformation	0x11
-
+#define NtDuplicateObject		0x12
 
 
 
@@ -173,6 +199,11 @@ typedef NTSTATUS (*NTSETSYSTEMINFORMATION)(IN SYSTEM_INFORMATION_CLASS SystemInf
 										   IN OUT PVOID SystemInformation,
 										   IN ULONG SystemInformationLength);
 
-
-
-
+// NtDuplicateObject()
+typedef NTSTATUS (*NTDUPLICATEOBJECT)(IN HANDLE SourceProcessHandle,
+									  IN HANDLE SourceHandle,
+									  IN HANDLE TargetProcessHandle,
+									  OUT PHANDLE TargetHandle OPTIONAL,
+									  IN ACCESS_MASK DesiredAccess,
+									  IN ULONG Attributes,
+									  IN ULONG Options);

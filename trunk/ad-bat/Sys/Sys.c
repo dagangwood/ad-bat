@@ -4,7 +4,7 @@
 
 PDRIVER_OBJECT pGlobalDvrObj;
 
-Hook SsdtHook[HOOKNUMS];
+Hook HookFunc[HOOKNUMS];
 
 //设备名、符号链接名字符串
 UNICODE_STRING device_name = RTL_CONSTANT_STRING(L"\\Device\\Ad-BAT");
@@ -15,7 +15,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT pDriverObject,
 
 					 IN PUNICODE_STRING pRegistryPath)
 {
-	DbgPrint("DriverEntry Function...\n");
+	DbgPrint("DriverEntry() Function...\n");
 
 	pGlobalDvrObj = pDriverObject;
 	NTSTATUS status;
@@ -35,8 +35,8 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT pDriverObject,
 	}
 
 	//生成符号链接
-	status = IoCreateSymbolicLink(&symb_link,
-								  &device_name);
+	status = IoCreateSymbolicLink(&symb_link,&device_name);
+
 	if (!NT_SUCCESS(status))
 	{
 		IoDeleteDevice(device);
@@ -46,15 +46,24 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT pDriverObject,
 	//设备生成之后，打开初始化完成标记
 	device->Flags &= ~DO_DEVICE_INITIALIZING;
 
+	//初始化SSDT Hook 操作
+	InitSsdtHook();
 
-	
-
+	//开始SSDT Hook
+	for (int i=0;i<HOOKNUMS;i++)
+	{
+		NT_SUCCESS status = SsdtHook(&HookFunc[i],TRUE);
+		if (!NT_SUCCESS(status))
+		{
+			return status;
+		}
+	}
 
 	// 驱动卸载函数 
 	pDriverObject->DriverUnload = OnUnload;
 
 	// IOCTL分发函数 (等苗的代码)
-	pDriverObject->MajorFunction[IRP_MY_DEVICE_CONTROL] = ;
+	//pDriverObject->MajorFunction[IRP_MY_DEVICE_CONTROL] = ;
 
 
 	return status;
@@ -64,13 +73,19 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT pDriverObject,
 //驱动卸载函数
 VOID OnUnload(IN PDRIVER_OBJECT DriverObject)
 {
-	DbgPrint("OnUnload Function...\n");
+	DbgPrint("OnUnload() Function...\n");
 
 
 	PDEVICE_OBJECT pdoNextDeviceObj = pGlobalDvrObj->DeviceObject;
 	IoDeleteSymbolicLink(&symb_link);
 
-	// Delete all the device objects
+
+	for (int i=0;i<HOOKNUMS;i++)
+	{
+		SsdtHook(&HookFunc[i],FALSE);
+	}
+
+	// 删除所有驱动设备句柄
 	while(pdoNextDeviceObj)
 	{
 		PDEVICE_OBJECT pdoThisDeviceObj = pdoNextDeviceObj;
@@ -83,66 +98,109 @@ VOID OnUnload(IN PDRIVER_OBJECT DriverObject)
 //初始化SSDT HOOK
 NTSTATUS InitSsdtHook()
 {
+	DbgPrint("InitSsdtHoot() Function...");
+
 	//先清零
 	for (int i=0;i<HOOKNUMS;i++)
 	{
-		SsdtHook[i].NewFunc = 0x00;
-		SsdtHook[i].NtFunc = 0x00;
-		SsdtHook[i].OrgFunc = 0x00;
+		HookFunc[i].NewFunc = 0x00;
+		HookFunc[i].NtFunc = 0x00;
+		HookFunc[i].OrgFunc = 0x00;
 	}
 
 	//注册Hook信息
 	//NtLoadDriver()
-	SsdtHook[NtLoadDriver].OrgFunc = ZwLoadDriver;
-	SsdtHook[NtLoadDriver].NewFunc = NewLoadDriver;
+	HookFunc[NtLoadDriver].OrgFunc = ZwLoadDriver;
+	HookFunc[NtLoadDriver].NewFunc = NewLoadDriver;
 	//NtCreateKey()
-	SsdtHook[NtCreateKey].OrgFunc = ZwCreateKey;
-	SsdtHook[NtCreateKey].NewFunc = NewCreateKey;
+	HookFunc[NtCreateKey].OrgFunc = ZwCreateKey;
+	HookFunc[NtCreateKey].NewFunc = NewCreateKey;
 	//NtSetValueKey()
-	SsdtHook[NtSetValueKey].OrgFunc = ZwSetValueKey;
-	SsdtHook[NtSetValueKey].NewFunc = NewSetValueKey;
+	HookFunc[NtSetValueKey].OrgFunc = ZwSetValueKey;
+	HookFunc[NtSetValueKey].NewFunc = NewSetValueKey;
 	//NtDeleteKey()
-	SsdtHook[NtDeleteKey].OrgFunc = ZwDeleteKey;
-	SsdtHook[NtDeleteKey].NewFunc = NewDeleteKey;
+	HookFunc[NtDeleteKey].OrgFunc = ZwDeleteKey;
+	HookFunc[NtDeleteKey].NewFunc = NewDeleteKey;
 	//NtDeleteVauleKey()
-	SsdtHook[NtDeleteVauleKey].OrgFunc = ZwDeleteValueKey;
-	SsdtHook[NtDeleteVauleKey].NewFunc = NewDeleteValueKey;
+	HookFunc[NtDeleteVauleKey].OrgFunc = ZwDeleteValueKey;
+	HookFunc[NtDeleteVauleKey].NewFunc = NewDeleteValueKey;
 	//NtCreateFile()
-	SsdtHook[NtCreateFile].OrgFunc = ZwCreateFile;
-	SsdtHook[NtCreateFile].NewFunc = NewCreateFile;
+	HookFunc[NtCreateFile].OrgFunc = ZwCreateFile;
+	HookFunc[NtCreateFile].NewFunc = NewCreateFile;
 	//NtWriteFile()
-	SsdtHook[NtWriteFile].OrgFunc = ZwWriteFile;
-	SsdtHook[NtWriteFile].NewFunc = NewWriteFile;
+	HookFunc[NtWriteFile].OrgFunc = ZwWriteFile;
+	HookFunc[NtWriteFile].NewFunc = NewWriteFile;
 	//NtSetInformationFile()
-	SsdtHook[NtSetInformationFile].OrgFunc = ZwSetInformationFile;
-	SsdtHook[NtSetInformationFile].NewFunc = NewSetInformationFile;
+	HookFunc[NtSetInformationFile].OrgFunc = ZwSetInformationFile;
+	HookFunc[NtSetInformationFile].NewFunc = NewSetInformationFile;
 	//NtOpenProcess()
-	SsdtHook[NtOpenProcess].OrgFunc = ZwOpenProcess;
-	SsdtHook[NtOpenProcess].NewFunc = NewOpenProcess;
+	HookFunc[NtOpenProcess].OrgFunc = ZwOpenProcess;
+	HookFunc[NtOpenProcess].NewFunc = NewOpenProcess;
 	//NtCreateProcess()
-	SsdtHook[NtCreateProcess].OrgFunc = ZwCreateProcess;
-	SsdtHook[NtCreateProcess].NewFunc = NewCreateProcess;
+	HookFunc[NtCreateProcess].OrgFunc = ZwCreateProcess;
+	HookFunc[NtCreateProcess].NewFunc = NewCreateProcess;
 	//NtCreateProcessEx()
-	SsdtHook[NtCreateProcessEx].OrgFunc = ZwCreateProcessEx;
-	SsdtHook[NtCreateProcessEx].NewFunc = NewCreateProcessEx;
+	HookFunc[NtCreateProcessEx].OrgFunc = ZwCreateProcessEx;
+	HookFunc[NtCreateProcessEx].NewFunc = NewCreateProcessEx;
 	//NtTerminateProcess()
-	SsdtHook[NtTerminateProcess].OrgFunc = ZwTerminateProcess;
-	SsdtHook[NtTerminateProcess].NewFunc = NewTerminateProcess;
+	HookFunc[NtTerminateProcess].OrgFunc = ZwTerminateProcess;
+	HookFunc[NtTerminateProcess].NewFunc = NewTerminateProcess;
 	//NtCreateThread()
-	SsdtHook[NtCreateThread].OrgFunc = ZwCreateThread;
-	SsdtHook[NtCreateThread].NewFunc = NewCreateThread;
+	HookFunc[NtCreateThread].OrgFunc = ZwCreateThread;
+	HookFunc[NtCreateThread].NewFunc = NewCreateThread;
 	//NtTerminateThread()
-	SsdtHook[NtTerminateThread].OrgFunc = ZwTerminateThread;
-	SsdtHook[NtTerminateThread].NewFunc = NewTerminateThread;
+	HookFunc[NtTerminateThread].OrgFunc = ZwTerminateThread;
+	HookFunc[NtTerminateThread].NewFunc = NewTerminateThread;
 	//NtQueueApcThread()
-	SsdtHook[NtQueueApcThread].OrgFunc = ZwQueueApcThread;
-	SsdtHook[NtQueueApcThread].NewFunc = NewQueueApcThread;
+	HookFunc[NtQueueApcThread].OrgFunc = ZwQueueApcThread;
+	HookFunc[NtQueueApcThread].NewFunc = NewQueueApcThread;
 	//NtWriteVirtualMemory()
-	SsdtHook[NtWriteVirtualMemory].OrgFunc = ZwWriteVirtualMemory;
-	SsdtHook[NtWriteVirtualMemory].NewFunc = NewWriteVirtualMemory;
+	HookFunc[NtWriteVirtualMemory].OrgFunc = ZwWriteVirtualMemory;
+	HookFunc[NtWriteVirtualMemory].NewFunc = NewWriteVirtualMemory;
 	//NtSetSystemInformation()
-	SsdtHook[NtSetSystemInformation].OrgFunc = ZwSetSystemInformation;
-	SsdtHook[NtSetSystemInformation].NewFunc = NewSetSystemInformation;
+	HookFunc[NtSetSystemInformation].OrgFunc = ZwSetSystemInformation;
+	HookFunc[NtSetSystemInformation].NewFunc = NewSetSystemInformation;
+	//NtDuplicateObject()
+	HookFunc[NtDuplicateObject].OrgFunc = ZwDuplicateObject;
+	HookFunc[NtDuplicateObject].NewFunc = NewDuplicateObject;
+
+	return STATUS_SUCCESS;
+}
 
 
+//打开全部SSDT HOOK
+NTSTATUS SsdtHook(Hook* pInfo,BOOLEAN bFlag)
+{
+	DbgPrint("SsdtHook() Function...\n");
+
+
+
+	PMDL pMdl = MmCreateMdl(NULL,KeServiceDescriptorTable.ServiceTableBase,KeServiceDescriptorTable.NumberOfServices*4);
+
+	if (!pMdl)
+	{
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	MmBuildMdlForNonPagedPool(pMdl);
+
+	pMdl->MdlFlags = pMdl->MdlFlags|MDL_MAPPED_TO_SYSTEM_VA;
+	NewSystemCall = (PVOID*)MmMapLockedPages(pMdl,KernelMode);
+
+	if (!NewSystemCall)
+	{
+		return STATUS_UNSUCCESSFUL;
+	}
+
+
+	if (bFlag == TRUE)
+	{
+		HOOK(pInfo->OrgFunc,pInfo->NewFunc,pInfo->NtFunc);
+	}
+	else
+	{
+		UNHOOK(pInfo->OrgFunc,pInfo->NtFunc);
+	}
+
+	return STATUS_SUCCESS;
 }
