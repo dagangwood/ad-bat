@@ -11,7 +11,7 @@
       <Property name="Text">Done!</Property>
       <Property name="Name">UIButton2</Property>
       <Property name="UseVisualStyleBackColor">True</Property>
-      <Property name="ForeColor">0, 0, 0</Property>
+      <Property name="ForeColor">Black</Property>
       <Property name="BeforeScaleFont" />
       <Property name="Location">177, 260</Property>
       <Property name="DataBindings">

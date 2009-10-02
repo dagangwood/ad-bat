@@ -1,0 +1,39 @@
+
+  <Object type="ControlLibrary.UIForm, ControlLibrary, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" name="UIForm1" children="Controls">
+    <Property name="ShowInTaskbar">False</Property>
+    <Property name="DisplayName">主窗体</Property>
+    <Property name="ClientSize">115, 73</Property>
+    <Property name="ContextMenuStrip">
+      <Reference name="UIContextMenuStrip1" />
+    </Property>
+    <Property name="Location">15, 15</Property>
+    <Property name="BackColor">236, 233, 216</Property>
+    <Property name="ForeColor">0, 0, 0</Property>
+    <Property name="Name">UIForm1</Property>
+    <Property name="Font">宋体, 9pt</Property>
+    <Property name="ShowIcon">False</Property>
+    <Property name="DataBindings">
+      <Property name="DefaultDataSourceUpdateMode">OnValidation</Property>
+    </Property>
+  </Object>
+  <Object type="ControlLibrary.UIContextMenuStrip, ControlLibrary, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" name="UIContextMenuStrip1" children="Controls">
+    <Property name="Items">
+      <Item type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+        <Reference name="ToolStripMenuItem1" />
+      </Item>
+    </Property>
+    <Property name="Dock">Fill</Property>
+    <Property name="DisplayText">右键菜单</Property>
+    <Property name="ToolTipsData" />
+    <Property name="Size">155, 26</Property>
+    <Property name="DisplayName">UIContextMenuStrip1</Property>
+    <Property name="Name">UIContextMenuStrip1</Property>
+    <Property name="DataBindings">
+      <Property name="DefaultDataSourceUpdateMode">OnValidation</Property>
+    </Property>
+  </Object>
+  <Object type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" name="ToolStripMenuItem1" parent="UIContextMenuStrip1">
+    <Property name="Text">以安装模式运行</Property>
+    <Property name="Name">ToolStripMenuItem1</Property>
+    <Property name="Size">154, 22</Property>
+  </Object>
