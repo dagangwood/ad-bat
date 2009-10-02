@@ -8,8 +8,20 @@
 //Hook函数个数
 #define HOOKNUMS	18
 
+//Io控制码
+#define PROC_ON		1001
+#define PROC_OFF	1002
+#define REG_ON		2001
+#define REG_OFF		2002
+#define FILE_ON		3001
+#define FILE_OFF	3002
+#define OTHER_ON	4001
+#define OTHER_OFF	4002
+#define INFO_IN		5001
+#define INFO_OUT	5002
+
 typedef struct Hook{
-	ULONG	OrgFunc;	//原始函数地址 ZwXXXX
+	ULONG	ZwIndex;	//原始函数地址 ZwXXXX
 	ULONG	NewFunc;	//替换函数地址
 	ULONG	NtFunc;		//保存原始函数地址
 }Hook,*pHook;
@@ -37,9 +49,9 @@ PVOID* NewSystemCall;
 //ZwXXXX mov eax,(NtNums)
 #define HOOK_INDEX(Zw2Nt)				*(PULONG)((PUCHAR)Zw2Nt+1)
 
-#define HOOK(OrgFunc,NewFunc,NtFunc)	NtFunc = (PVOID)InterlockedExchange((PLONG)&NewSystemCall[HOOK_INDEX(OrgFunc)],(LONG)NewFunc)
+#define HOOK(ZwIndex,NewFunc,NtFunc)	NtFunc = (PVOID)InterlockedExchange((PLONG)&NewSystemCall[HOOK_INDEX(ZwIndex)],(LONG)NewFunc)
 
-#define UNHOOK(OrgFunc,NtFunc)			InterlockedExchange((PLONG)&NewSystemCall[HOOK_INDEX(OrgFunc)],(LONG)NtFunc)
+#define UNHOOK(ZwIndex,NtFunc)			InterlockedExchange((PLONG)&NewSystemCall[HOOK_INDEX(ZwIndex)],(LONG)NtFunc)
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -48,6 +60,10 @@ PVOID* NewSystemCall;
 
 //驱动卸载函数
 VOID OnUnload(__in PDRIVER_OBJECT DriverObject);
+//Io控制函数
+NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp);
+//打开或者关闭设备
+NTSTATUS CreateClose(PDEVICE_OBJECT DeviceObject,PIRP irp);
 //初始化SSDT HOOK
 NTSTATUS InitSsdtHook();
 //打开全部SSDT HOOK

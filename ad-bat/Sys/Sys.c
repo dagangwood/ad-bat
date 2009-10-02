@@ -1,13 +1,15 @@
 #include "Sys.h"
 
-
 PDRIVER_OBJECT pGlobalDvrObj;
 
 Hook HookFunc[HOOKNUMS];
 
 //设备名、符号链接名字符串
-UNICODE_STRING device_name = RTL_CONSTANT_STRING(L"\\Device\\Ad-BAT");
-UNICODE_STRING symb_link = RTL_CONSTANT_STRING(L"\\Device\\AdBATSL");
+UNICODE_STRING device_name = RTL_CONSTANT_STRING(L"\\Device\\AdBAT");
+UNICODE_STRING symb_link = RTL_CONSTANT_STRING(L"\\DosDevices\\AdBAT");
+
+
+
 
 
 NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
@@ -27,7 +29,7 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 							NULL,
 							&device_name,
 							FILE_DEVICE_UNKNOWN,
-							NULL,
+							FILE_DEVICE_SECURE_OPEN,
 							FALSE,
 							&device);
 	if (!NT_SUCCESS(status))
@@ -45,26 +47,28 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 	}
 
 	//设备生成之后，打开初始化完成标记
-	device->Flags &= ~DO_DEVICE_INITIALIZING;
+	//device->Flags &= ~DO_DEVICE_INITIALIZING;
 
 	//初始化SSDT Hook 操作
-	InitSsdtHook();
+	status = InitSsdtHook();
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
 
 	//开始SSDT Hook
 	for (i=0;i<HOOKNUMS;i++)
 	{
-		NTSTATUS status = SsdtHook(&HookFunc[i],TRUE);
-		if (!NT_SUCCESS(status))
-		{
-			return status;
-		}
+		SsdtHook(&HookFunc[i],TRUE);
 	}
 
 	// 驱动卸载函数 
 	pDriverObject->DriverUnload = OnUnload;
-
-	// IOCTL分发函数 (等苗的代码)
-	//pDriverObject->MajorFunction[IRP_MY_DEVICE_CONTROL] = ;
+	//打开、关闭设备函数
+	pDriverObject->MajorFunction[IRP_MJ_CREATE] = CreateClose;
+	pDriverObject->MajorFunction[IRP_MJ_CLOSE]  = CreateClose;
+	// IOCTL分发函数
+	pDriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = DeviceControl;
 
 
 	return status;
@@ -104,6 +108,7 @@ NTSTATUS InitSsdtHook()
 	//循环用
 	int i = 0;
 	UNICODE_STRING szDll;
+	PMDL pMdl;
 	RtlInitUnicodeString(&szDll, L"\\Device\\HarddiskVolume1\\Windows\\System32\\ntdll.dll");
 
 	DbgPrint("InitSsdtHoot() Function...");
@@ -113,74 +118,68 @@ NTSTATUS InitSsdtHook()
 	{
 		HookFunc[i].NewFunc = 0x00;
 		HookFunc[i].NtFunc = 0x00;
-		HookFunc[i].OrgFunc = 0x00;
+		HookFunc[i].ZwIndex = 0x00;
 	}
 
 
 	//注册Hook信息
 	//NtLoadDriver()
-	HookFunc[NtLoadDriver].OrgFunc = ZwLoadDriver;
+	HookFunc[NtLoadDriver].ZwIndex = HOOK_INDEX(ZwLoadDriver);
 	HookFunc[NtLoadDriver].NewFunc = NewLoadDriver;
 	//NtCreateKey()
-	HookFunc[NtCreateKey].OrgFunc = ZwCreateKey;
+	HookFunc[NtCreateKey].ZwIndex = HOOK_INDEX(ZwCreateKey);
 	HookFunc[NtCreateKey].NewFunc = NewCreateKey;
 	//NtSetValueKey()
-	HookFunc[NtSetValueKey].OrgFunc = ZwSetValueKey;
+	HookFunc[NtSetValueKey].ZwIndex = HOOK_INDEX(ZwSetValueKey);
 	HookFunc[NtSetValueKey].NewFunc = NewSetValueKey;
 	//NtDeleteKey()
-	HookFunc[NtDeleteKey].OrgFunc = ZwDeleteKey;
+	HookFunc[NtDeleteKey].ZwIndex = HOOK_INDEX(ZwDeleteKey);
 	HookFunc[NtDeleteKey].NewFunc = NewDeleteKey;
 	//NtDeleteVauleKey()
-	HookFunc[NtDeleteVauleKey].OrgFunc = ZwDeleteValueKey;
+	HookFunc[NtDeleteVauleKey].ZwIndex = HOOK_INDEX(ZwDeleteValueKey);
 	HookFunc[NtDeleteVauleKey].NewFunc = NewDeleteValueKey;
 	//NtCreateFile()
-	HookFunc[NtCreateFile].OrgFunc = ZwCreateFile;
+	HookFunc[NtCreateFile].ZwIndex = HOOK_INDEX(ZwCreateFile);
 	HookFunc[NtCreateFile].NewFunc = NewCreateFile;
 	//NtWriteFile()
-	HookFunc[NtWriteFile].OrgFunc = ZwWriteFile;
+	HookFunc[NtWriteFile].ZwIndex = HOOK_INDEX(ZwWriteFile);
 	HookFunc[NtWriteFile].NewFunc = NewWriteFile;
 	//NtSetInformationFile()
-	HookFunc[NtSetInformationFile].OrgFunc = ZwSetInformationFile;
+	HookFunc[NtSetInformationFile].ZwIndex = HOOK_INDEX(ZwSetInformationFile);
 	HookFunc[NtSetInformationFile].NewFunc = NewSetInformationFile;
 	//NtOpenProcess()
-	HookFunc[NtOpenProcess].OrgFunc = ZwOpenProcess;
+	HookFunc[NtOpenProcess].ZwIndex = HOOK_INDEX(ZwOpenProcess);
 	HookFunc[NtOpenProcess].NewFunc = NewOpenProcess;
 	//NtCreateProcess()
-	HookFunc[NtCreateProcess].OrgFunc = GetSsdtApi("ZwCreateProcess",&szDll);
+	HookFunc[NtCreateProcess].ZwIndex = HOOK_INDEX(GetSsdtApi("ZwCreateProcess",&szDll));
 	HookFunc[NtCreateProcess].NewFunc = NewCreateProcess;
 	//NtCreateProcessEx()
-	HookFunc[NtCreateProcessEx].OrgFunc = GetSsdtApi("ZwCreateProcessEx",&szDll);
+	HookFunc[NtCreateProcessEx].ZwIndex = HOOK_INDEX(GetSsdtApi("ZwCreateProcessEx",&szDll));
 	HookFunc[NtCreateProcessEx].NewFunc = NewCreateProcessEx;
 	//NtTerminateProcess()
-	HookFunc[NtTerminateProcess].OrgFunc = ZwTerminateProcess;
+	HookFunc[NtTerminateProcess].ZwIndex = HOOK_INDEX(ZwTerminateProcess);
 	HookFunc[NtTerminateProcess].NewFunc = NewTerminateProcess;
 	//NtCreateThread()
-	HookFunc[NtCreateThread].OrgFunc = GetSsdtApi("ZwCreateThread",&szDll);
+	HookFunc[NtCreateThread].ZwIndex = HOOK_INDEX(GetSsdtApi("ZwCreateThread",&szDll));
 	HookFunc[NtCreateThread].NewFunc = NewCreateThread;
 	//NtTerminateThread()
-	HookFunc[NtTerminateThread].OrgFunc = GetSsdtApi("ZwTerminateThread",&szDll);
+	HookFunc[NtTerminateThread].ZwIndex = HOOK_INDEX(GetSsdtApi("ZwTerminateThread",&szDll));
 	HookFunc[NtTerminateThread].NewFunc = NewTerminateThread;
 	//NtQueueApcThread()
-	HookFunc[NtQueueApcThread].OrgFunc = GetSsdtApi("ZwQueueApcThread",&szDll);
+	HookFunc[NtQueueApcThread].ZwIndex = HOOK_INDEX(GetSsdtApi("ZwQueueApcThread",&szDll));
 	HookFunc[NtQueueApcThread].NewFunc = NewQueueApcThread;
 	//NtWriteVirtualMemory()
-	HookFunc[NtWriteVirtualMemory].OrgFunc = GetSsdtApi("ZwWriteVirtualMemory",&szDll);
+	HookFunc[NtWriteVirtualMemory].ZwIndex = HOOK_INDEX(GetSsdtApi("ZwWriteVirtualMemory",&szDll));
 	HookFunc[NtWriteVirtualMemory].NewFunc = NewWriteVirtualMemory;
 	//NtSetSystemInformation()
-	HookFunc[NtSetSystemInformation].OrgFunc = GetSsdtApi("ZwSetSystemInformation",&szDll);
+	HookFunc[NtSetSystemInformation].ZwIndex = HOOK_INDEX(GetSsdtApi("ZwSetSystemInformation",&szDll));
 	HookFunc[NtSetSystemInformation].NewFunc = NewSetSystemInformation;
 	//NtDuplicateObject()
-	HookFunc[NtDuplicateObject].OrgFunc = ZwDuplicateObject;
+	HookFunc[NtDuplicateObject].ZwIndex = HOOK_INDEX(ZwDuplicateObject);
 	HookFunc[NtDuplicateObject].NewFunc = NewDuplicateObject;
 
-	return STATUS_SUCCESS;
-}
-
-
-//打开全部SSDT HOOK
-NTSTATUS SsdtHook(pHook pInfo,BOOLEAN bFlag)
-{
-	PMDL pMdl = MmCreateMdl(NULL,KeServiceDescriptorTable.ServiceTableBase,KeServiceDescriptorTable.NumberOfServices*4);
+	//使SSDT表可写,并保存可写的首地址
+	pMdl = MmCreateMdl(NULL,KeServiceDescriptorTable.ServiceTableBase,KeServiceDescriptorTable.NumberOfServices*4);
 
 	DbgPrint("SsdtHook() Function...\n");
 
@@ -199,24 +198,26 @@ NTSTATUS SsdtHook(pHook pInfo,BOOLEAN bFlag)
 		return STATUS_UNSUCCESSFUL;
 	}
 
-
-	if (bFlag == TRUE)
-	{
-		HOOK(pInfo->OrgFunc,pInfo->NewFunc,pInfo->NtFunc);
-	}
-	else
-	{
-		UNHOOK(pInfo->OrgFunc,pInfo->NtFunc);
-	}
-
 	return STATUS_SUCCESS;
 }
 
 
+//SSDT Hook or UnHook
+NTSTATUS SsdtHook(pHook pInfo,BOOLEAN bFlag)
+{
+	if (bFlag == TRUE)
+	{
+		//HOOK(pInfo->ZwIndex,pInfo->NewFunc,pInfo->NtFunc);
+		pInfo->NtFunc = InterlockedExchange((PLONG)&NewSystemCall[pInfo->ZwIndex],(LONG)pInfo->NewFunc);
+	}
+	else
+	{
+		//UNHOOK(pInfo->ZwIndex,pInfo->NtFunc);
+		InterlockedExchange((PLONG)&NewSystemCall[pInfo->ZwIndex],(LONG)pInfo->NtFunc);
+	}
 
-
-
-
+	return STATUS_SUCCESS;
+}
 
 
 
@@ -712,4 +713,132 @@ NTSTATUS GetSsdtApi(PCHAR szApiName,PUNICODE_STRING szDll)
 
 	//ZwClose(hSection);
 	return 0;
+}
+
+//打开或者关闭设备
+NTSTATUS CreateClose(PDEVICE_OBJECT DeviceObject,PIRP irp)
+{
+	return STATUS_NOT_SUPPORTED;
+}
+
+
+//IOCONTROL 分发函数
+NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
+{
+	PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(pIrp);
+
+	NTSTATUS Status;
+
+	ULONG Code = IrpSp->Parameters.DeviceIoControl.IoControlCode;
+
+	ULONG InputLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+
+	ULONG OutputLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
+
+	PVOID pIoBuff = pIrp->AssociatedIrp.SystemBuffer;
+
+	DbgPrint("DeviceIoControl() Function...\n");
+
+	switch(Code)
+	{
+	case PROC_ON:
+		{
+			DbgPrint("PROC_ON");
+
+			SsdtHook(&HookFunc[NtOpenProcess],TRUE);
+			SsdtHook(&HookFunc[NtCreateProcess],TRUE);
+			SsdtHook(&HookFunc[NtCreateProcessEx],TRUE);
+			SsdtHook(&HookFunc[NtTerminateProcess],TRUE);
+			SsdtHook(&HookFunc[NtCreateThread],TRUE);
+			SsdtHook(&HookFunc[NtTerminateThread],TRUE);
+			SsdtHook(&HookFunc[NtQueueApcThread],TRUE);
+			SsdtHook(&HookFunc[NtWriteVirtualMemory],TRUE);
+		}
+		break;
+	case PROC_OFF:
+		{
+			DbgPrint("PROC_OFF");
+
+			SsdtHook(&HookFunc[NtOpenProcess],FALSE);
+			SsdtHook(&HookFunc[NtCreateProcess],FALSE);
+			SsdtHook(&HookFunc[NtCreateProcessEx],FALSE);
+			SsdtHook(&HookFunc[NtTerminateProcess],FALSE);
+			SsdtHook(&HookFunc[NtCreateThread],FALSE);
+			SsdtHook(&HookFunc[NtTerminateThread],FALSE);
+			SsdtHook(&HookFunc[NtQueueApcThread],FALSE);
+			SsdtHook(&HookFunc[NtWriteVirtualMemory],FALSE);
+		}
+		break;
+	case REG_ON:
+		{
+			DbgPrint("REG_ON");
+
+			SsdtHook(&HookFunc[NtCreateKey],TRUE);
+			SsdtHook(&HookFunc[NtSetValueKey],TRUE);
+			SsdtHook(&HookFunc[NtDeleteKey],TRUE);
+			SsdtHook(&HookFunc[NtDeleteVauleKey],TRUE);
+		}
+		break;
+	case REG_OFF:
+		{
+			DbgPrint("REG_OFF");
+
+			SsdtHook(&HookFunc[NtCreateKey],FALSE);
+			SsdtHook(&HookFunc[NtSetValueKey],FALSE);
+			SsdtHook(&HookFunc[NtDeleteKey],FALSE);
+			SsdtHook(&HookFunc[NtDeleteVauleKey],FALSE);
+		}
+		break;
+	case FILE_ON:
+		{
+			DbgPrint("FILE_ON");
+
+			SsdtHook(&HookFunc[NtCreateFile],TRUE);
+			SsdtHook(&HookFunc[NtWriteFile],TRUE);
+			SsdtHook(&HookFunc[NtSetInformationFile],TRUE);
+		}
+		break;
+	case FILE_OFF:
+		{
+			DbgPrint("FILE_OFF");
+
+			SsdtHook(&HookFunc[NtCreateFile],FALSE);
+			SsdtHook(&HookFunc[NtWriteFile],FALSE);
+			SsdtHook(&HookFunc[NtSetInformationFile],FALSE);
+		}
+		break;
+	case OTHER_ON:
+		{
+			DbgPrint("OTHER_ON\n");
+
+			SsdtHook(&HookFunc[NtLoadDriver],TRUE);
+			SsdtHook(&HookFunc[NtSetSystemInformation],TRUE);
+			SsdtHook(&HookFunc[NtDuplicateObject],TRUE);
+		}
+		break;
+	case OTHER_OFF:
+		{
+			DbgPrint("OTHER_OFF\n");
+
+			SsdtHook(&HookFunc[NtLoadDriver],FALSE);
+			SsdtHook(&HookFunc[NtSetSystemInformation],FALSE);
+			SsdtHook(&HookFunc[NtDuplicateObject],FALSE);
+		}
+		break;
+	case INFO_OUT:
+		{
+			DbgPrint("INFO_OUT");
+		}
+		break;
+	case INFO_IN:
+		{
+			DbgPrint("INFO_IN");
+		}
+		break;
+	}
+
+	pIrp->IoStatus.Status = STATUS_SUCCESS;
+	IoCompleteRequest(pIrp, IO_NO_INCREMENT);
+
+	return pIrp->IoStatus.Status;
 }
