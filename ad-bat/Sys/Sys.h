@@ -6,7 +6,7 @@
 
 
 //Hook函数个数
-#define HOOKNUMS	19
+#define HOOKNUMS	18
 
 typedef struct Hook{
 	ULONG	OrgFunc;	//原始函数地址 ZwXXXX
@@ -39,7 +39,7 @@ PVOID* NewSystemCall;
 
 #define HOOK(OrgFunc,NewFunc,NtFunc)	NtFunc = (PVOID)InterlockedExchange((PLONG)&NewSystemCall[HOOK_INDEX(OrgFunc)],(LONG)NewFunc)
 
-#define UNHOOK(OrgFunc,NtFunc)			InterlockedExchange((PLONG) NewSystemCall[HOOK_INDEX(OrgFunc)],(LONG)NtFunc)
+#define UNHOOK(OrgFunc,NtFunc)			InterlockedExchange((PLONG)&NewSystemCall[HOOK_INDEX(OrgFunc)],(LONG)NtFunc)
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -75,11 +75,11 @@ NTSTATUS GetSsdtApi(PCHAR szApiName,PUNICODE_STRING szDll);
 #define NtCreateProcessEx		0x0A
 #define NtTerminateProcess		0x0B
 #define NtCreateThread			0x0C
-#define NtTerminateThread		0x0E
-#define NtQueueApcThread		0x0F
-#define NtWriteVirtualMemory	0x10
-#define NtSetSystemInformation	0x11
-#define NtDuplicateObject		0x12
+#define NtTerminateThread		0x0D
+#define NtQueueApcThread		0x0E
+#define NtWriteVirtualMemory	0x0F
+#define NtSetSystemInformation	0x10
+#define NtDuplicateObject		0x11
 
 
 
