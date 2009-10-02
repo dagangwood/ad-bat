@@ -1,0 +1,96 @@
+
+  <Object type="ControlLibrary.UIForm, ControlLibrary, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" name="UIForm1" children="Controls">
+    <Property name="DisplayName">主窗体</Property>
+    <Property name="ClientSize">306, 199</Property>
+    <Property name="ContextMenuStrip">
+      <Reference name="UIContextMenuStrip1" />
+    </Property>
+    <Property name="Name">UIForm1</Property>
+    <Property name="DataBindings">
+      <Property name="DefaultDataSourceUpdateMode">OnValidation</Property>
+    </Property>
+  </Object>
+  <Object type="ControlLibrary.UIContextMenuStrip, ControlLibrary, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" name="UIContextMenuStrip1" children="Controls">
+    <Property name="Items">
+      <Item type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+        <Reference name="ToolStripMenuItem1" />
+      </Item>
+      <Item type="System.Windows.Forms.ToolStripSeparator, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+        <Reference name="ToolStripSeparator1" />
+      </Item>
+      <Item type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+        <Reference name="ToolStripMenuItem2" />
+      </Item>
+      <Item type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+        <Reference name="ToolStripMenuItem3" />
+      </Item>
+      <Item type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+        <Reference name="ToolStripMenuItem4" />
+      </Item>
+      <Item type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+        <Reference name="ToolStripMenuItem5" />
+      </Item>
+      <Item type="System.Windows.Forms.ToolStripSeparator, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+        <Reference name="ToolStripSeparator2" />
+      </Item>
+      <Item type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+        <Reference name="ToolStripMenuItem6" />
+      </Item>
+    </Property>
+    <Property name="DisplayText">右键菜单</Property>
+    <Property name="ToolTipsData" />
+    <Property name="Size">137, 148</Property>
+    <Property name="DisplayName">UIContextMenuStrip1</Property>
+    <Property name="Name">UIContextMenuStrip1</Property>
+    <Property name="DataBindings">
+      <Property name="DefaultDataSourceUpdateMode">OnValidation</Property>
+    </Property>
+  </Object>
+  <Object type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" name="ToolStripMenuItem1" parent="UIContextMenuStrip1">
+    <Property name="Text">关于 Ad-BAT</Property>
+    <Property name="Name">ToolStripMenuItem1</Property>
+    <Property name="Size">136, 22</Property>
+  </Object>
+  <Object type="System.Windows.Forms.ToolStripSeparator, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" name="ToolStripSeparator1" parent="UIContextMenuStrip1">
+    <Property name="Tag">UIContextMenuStrip1</Property>
+    <Property name="Name">ToolStripSeparator1</Property>
+    <Property name="Size">133, 6</Property>
+  </Object>
+  <Object type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" name="ToolStripMenuItem2" parent="UIContextMenuStrip1">
+    <Property name="Text">进程防护</Property>
+    <Property name="Name">ToolStripMenuItem2</Property>
+    <Property name="Checked">True</Property>
+    <Property name="CheckState">Checked</Property>
+    <Property name="Size">136, 22</Property>
+  </Object>
+  <Object type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" name="ToolStripMenuItem3" parent="UIContextMenuStrip1">
+    <Property name="Text">文件防护</Property>
+    <Property name="Name">ToolStripMenuItem3</Property>
+    <Property name="Checked">True</Property>
+    <Property name="CheckState">Checked</Property>
+    <Property name="Size">136, 22</Property>
+  </Object>
+  <Object type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" name="ToolStripMenuItem4" parent="UIContextMenuStrip1">
+    <Property name="Text">注册表防护</Property>
+    <Property name="Name">ToolStripMenuItem4</Property>
+    <Property name="Checked">True</Property>
+    <Property name="CheckState">Checked</Property>
+    <Property name="Size">136, 22</Property>
+  </Object>
+  <Object type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" name="ToolStripMenuItem5" parent="UIContextMenuStrip1">
+    <Property name="Text">其它防护</Property>
+    <Property name="Name">ToolStripMenuItem5</Property>
+    <Property name="Checked">True</Property>
+    <Property name="CheckState">Checked</Property>
+    <Property name="Size">136, 22</Property>
+  </Object>
+  <Object type="System.Windows.Forms.ToolStripSeparator, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" name="ToolStripSeparator2" parent="UIContextMenuStrip1">
+    <Property name="Tag">UIContextMenuStrip1</Property>
+    <Property name="Name">ToolStripSeparator2</Property>
+    <Property name="Size">133, 6</Property>
+  </Object>
+  <Object type="System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" name="ToolStripMenuItem6" parent="UIContextMenuStrip1">
+    <Property name="Text">退出</Property>
+    <Property name="Name">ToolStripMenuItem6</Property>
+    <Property name="Size">136, 22</Property>
+  </Object>
