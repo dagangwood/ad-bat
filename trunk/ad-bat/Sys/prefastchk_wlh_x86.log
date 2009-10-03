@@ -4,17 +4,23 @@ Copyright (C) Microsoft Corporation. All rights reserved.
 -----------------------------------------------------------------------------
 Contents of defect log: PREfast_defects_chk_wlh_x86.xml
 -----------------------------------------------------------------------------
-d:\project\ad-bat\ad-bat\sys\sys.c (182): warning 28159: Consider using 'IoAllocateMdl' instead of 'MmCreateMdl'. Reason:  Obsolete.
-	FUNCTION: InitSsdtHook (106)
+d:\project\ad-bat\ad-bat\sys\sys.c (1404): warning 28159: Consider using 'ExAllocatePoolWithTag' instead of 'ExAllocatePool'. Reason:  No tag interferes with debugging.
+	FUNCTION: Handle2Target (1398)
 
-d:\project\ad-bat\ad-bat\sys\sys.c (193): warning 28145: The opaque MDL structure should not be modified by a driver.
-	FUNCTION: InitSsdtHook (106)
+d:\project\ad-bat\ad-bat\sys\sys.c (191): warning 28159: Consider using 'IoAllocateMdl' instead of 'MmCreateMdl'. Reason:  Obsolete.
+	FUNCTION: InitSsdtHook (115)
 
-d:\project\ad-bat\ad-bat\sys\sys.c (194): warning 28159: Consider using 'MmMapLockedPagesSpecifyCache' instead of 'MmMapLockedPages'. Reason:  Obsolete except on Windows 98.  Use MmGetSystemAddressForMdlSafe if this is a call to MmGetSystemAddressForMdl..
-	FUNCTION: InitSsdtHook (106)
+d:\project\ad-bat\ad-bat\sys\sys.c (202): warning 28145: The opaque MDL structure should not be modified by a driver.
+	FUNCTION: InitSsdtHook (115)
+
+d:\project\ad-bat\ad-bat\sys\sys.c (203): warning 28159: Consider using 'MmMapLockedPagesSpecifyCache' instead of 'MmMapLockedPages'. Reason:  Obsolete except on Windows 98.  Use MmGetSystemAddressForMdlSafe if this is a call to MmGetSystemAddressForMdl..
+	FUNCTION: InitSsdtHook (115)
+
+d:\project\ad-bat\ad-bat\sys\sys.c (560): warning 28132: Taking the size of pointer Event:  This will yield the size of a pointer (4 or 8), not the size of the object pointed to. Dereference the pointer, or if the size of a pointer was intended, use the pointer type or (void *) instead.
+	FUNCTION: NewWriteFile (543)
 
 -----------------------------------------------------------------------------
-3 of 3 Defects Listed
+5 of 5 Defects Listed
 Filter in effect: drivers_recommended
 -----------------------------------------------------------------------------
 You can change the filter and sort options from the user interface.
