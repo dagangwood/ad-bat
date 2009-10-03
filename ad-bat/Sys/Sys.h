@@ -4,9 +4,32 @@
 //宏定义、全局变量声明部分
 //////////////////////////////////////////////////////////////////////////
 
+#define MAX_PATH 260
 
 //Hook函数个数
 #define HOOKNUMS	18
+
+//////////////////////////////////////////////////////////////////////////
+//Event.Behavior Define
+//////////////////////////////////////////////////////////////////////////
+#define NtLoadDriver			0x00
+#define	NtCreateKey				0x01
+#define NtSetValueKey			0x02
+#define NtDeleteKey				0x03
+#define NtDeleteVauleKey		0x04
+#define NtCreateFile			0x05
+#define NtWriteFile				0x06
+#define NtSetInformationFile	0x07
+#define NtOpenProcess			0x08
+#define NtCreateProcess			0x09
+#define NtCreateProcessEx		0x0A
+#define NtTerminateProcess		0x0B
+#define NtCreateThread			0x0C
+#define NtTerminateThread		0x0D
+#define NtQueueApcThread		0x0E
+#define NtWriteVirtualMemory	0x0F
+#define NtSetSystemInformation	0x10
+#define NtDuplicateObject		0x11
 
 //Io控制码
 #define PROC_ON		1001
@@ -19,21 +42,43 @@
 #define OTHER_OFF	4002
 #define INFO_IN		5001
 #define INFO_OUT	5002
+#define INFO_PID	6001
 
+//////////////////////////////////////////////////////////////////////////
+//Event.type Define
+//////////////////////////////////////////////////////////////////////////
+#define EVENT_TPYE_PROC	1000
+#define EVENT_TPYE_REG	2000
+#define EVENT_TPYE_FILE	3000
+#define EVENT_TPYE_INFO	4000
+
+
+
+
+
+
+//用于存储Hook信息的结构体
 typedef struct Hook{
 	ULONG	ZwIndex;	//原始函数地址 ZwXXXX
 	ULONG	NewFunc;	//替换函数地址
 	ULONG	NtFunc;		//保存原始函数地址
 }Hook,*pHook;
 
+//行为记录结构体
+typedef struct Event{
+	UINT	Type;
+	UINT	Behavior;
+	ULONG	Pid;
+	CHAR	Target[MAX_PATH];
+}Event;
 
 //导出全局变量 SSDT 表
 #pragma pack(1)
 typedef struct ServiceDescriptorEntry {
-	unsigned int	*ServiceTableBase;
-	unsigned int	*ServiceCounterTableBase;
-	unsigned int	NumberOfServices;
-	unsigned char	*ParamTableBase;
+	UINT	*ServiceTableBase;
+	UINT	*ServiceCounterTableBase;
+	UINT	NumberOfServices;
+	UCHAR	*ParamTableBase;
 } ServiceDescriptorTableEntry_t, *PServiceDescriptorTableEntry_t;
 #pragma pack()
 __declspec(dllimport) ServiceDescriptorTableEntry_t KeServiceDescriptorTable;
@@ -72,30 +117,35 @@ NTSTATUS SsdtHook(pHook pInfo,BOOLEAN bFlag);
 NTSTATUS GetSsdtApi(PCHAR szApiName,PUNICODE_STRING szDll);
 
 
+//内核判断逻辑函数
+//是否为自身行为
+BOOLEAN IsSelfBehavior(Event* pEvent);
+//是否在白名单中
+BOOLEAN IsInWhiteList(Event* pEvent);
+//用户层判断结果反馈
+BOOLEAN JudgeByUser(Event* pEvent);
+
+//Event->Target获得方式
+//从字符串获得
+NTSTATUS String2Target(Event* pEvent,PUNICODE_STRING pUnicodeString);
+//从句柄获得
+NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle);
 
 
 
+#if (NTDDI_VERSION >= NTDDI_WIN2K)
+NTKERNELAPI
+NTSTATUS
+ObQueryNameString(
+				  __in PVOID Object,
+				  __out_bcount_opt(Length) POBJECT_NAME_INFORMATION ObjectNameInfo,
+				  __in ULONG Length,
+				  __out PULONG ReturnLength
+				  );
+#endif
 
 
 
-#define NtLoadDriver			0x00
-#define	NtCreateKey				0x01
-#define NtSetValueKey			0x02
-#define NtDeleteKey				0x03
-#define NtDeleteVauleKey		0x04
-#define NtCreateFile			0x05
-#define NtWriteFile				0x06
-#define NtSetInformationFile	0x07
-#define NtOpenProcess			0x08
-#define NtCreateProcess			0x09
-#define NtCreateProcessEx		0x0A
-#define NtTerminateProcess		0x0B
-#define NtCreateThread			0x0C
-#define NtTerminateThread		0x0D
-#define NtQueueApcThread		0x0E
-#define NtWriteVirtualMemory	0x0F
-#define NtSetSystemInformation	0x10
-#define NtDuplicateObject		0x11
 
 
 

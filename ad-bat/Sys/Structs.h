@@ -2,11 +2,13 @@
 //补充Windows未文档话的结构体定义
 //////////////////////////////////////////////////////////////////////////
 #include <ntddk.h>
+/*#include <ntifs.h>*/
 #include <ntdef.h>
 #include <ntimage.h>
 #include <stdio.h>
 
 typedef unsigned char BYTE ;
+typedef unsigned int UINT;
 typedef unsigned long DWORD;
 typedef int      BOOL      ;
 typedef unsigned short WORD;
