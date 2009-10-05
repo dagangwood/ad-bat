@@ -410,9 +410,11 @@ NTSTATUS NewDuplicateObject(__in HANDLE SourceProcessHandle,
 						    __in ULONG Attributes,
 						    __in ULONG Options);
 
-// ZwQueryInformationProcess
-typedef NTSTATUS (*ZWQUERYINFORMATIONPROCESS)(__in HANDLE ProcessHandle,
-											  __in PROCESSINFOCLASS ProcessInformationClass,
-											  __out PVOID ProcessInformation,
-											  __in ULONG ProcessInformationLength,
-											  __out PULONG ReturnLength OPTIONAL);
+//	NtDuplicateObject
+NTSYSAPI NTSTATUS NTAPI ZwDuplicateObject(__in HANDLE SourceProcessHandle,
+										  __in HANDLE SourceHandle,
+										  __in HANDLE TargetProcessHandle,
+										  __out PHANDLE TargetHandle OPTIONAL,
+										  __in ACCESS_MASK DesiredAccess,
+										  __in ULONG Attributes,
+										  __in ULONG Options);

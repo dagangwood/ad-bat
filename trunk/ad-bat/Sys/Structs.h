@@ -152,11 +152,28 @@ typedef struct _SECTION_IMAGE_INFORMATION { // Information Class 1
 //								 __in __out PVOID SystemInformation,
 //								 __in ULONG SystemInformationLength);
 
+typedef struct _THREAD_BASIC_INFORMATION { 
+	NTSTATUS ExitStatus; 
+	PVOID TebBaseAddress; 
+	ULONG UniqueProcessId; 
+	ULONG UniqueThreadId; 
+	KAFFINITY AffinityMask; 
+	KPRIORITY BasePriority; 
+	ULONG DiffProcessPriority; 
+} THREAD_BASIC_INFORMATION, *PTHREAD_BASIC_INFORMATION;
 
-NTSYSAPI NTSTATUS NTAPI ZwDuplicateObject(__in HANDLE SourceProcessHandle,
-							__in HANDLE SourceHandle,
-							__in HANDLE TargetProcessHandle,
-							__out PHANDLE TargetHandle OPTIONAL,
-							__in ACCESS_MASK DesiredAccess,
-							__in ULONG Attributes,
-							__in ULONG Options);
+//	ZwQueryInformationThread
+typedef NTSTATUS (*ZWQUERYINFORMATIONTHREAD) (__in HANDLE ThreadHandle, 
+												  __in THREADINFOCLASS ThreadInformationClass, 
+												  __out PVOID ThreadInformation, 
+												  __in ULONG ThreadInformationLength, 
+												  __out PULONG ReturnLength OPTIONAL );
+
+
+// ZwQueryInformationProcess
+typedef NTSTATUS (*ZWQUERYINFORMATIONPROCESS)(__in HANDLE ProcessHandle,
+											  __in PROCESSINFOCLASS ProcessInformationClass,
+											  __out PVOID ProcessInformation,
+											  __in ULONG ProcessInformationLength,
+											  __out PULONG ReturnLength OPTIONAL);
+
