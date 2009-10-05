@@ -32,25 +32,26 @@
 #define NtDuplicateObject		0x11
 
 //Io控制码
-#define PROC_ON		1001
-#define PROC_OFF	1002
-#define REG_ON		2001
-#define REG_OFF		2002
-#define FILE_ON		3001
-#define FILE_OFF	3002
-#define OTHER_ON	4001
-#define OTHER_OFF	4002
-#define INFO_IN		5001
-#define INFO_OUT	5002
-#define INFO_PID	6001
+//Io控制码
+#define PROC_ON			CTL_CODE(FILE_DEVICE_UNKNOWN,0x811,METHOD_BUFFERED,FILE_ANY_ACCESS)
+#define PROC_OFF		CTL_CODE(FILE_DEVICE_UNKNOWN,0x812,METHOD_BUFFERED,FILE_ANY_ACCESS)
+#define REG_ON			CTL_CODE(FILE_DEVICE_UNKNOWN,0x821,METHOD_BUFFERED,FILE_ANY_ACCESS)
+#define REG_OFF			CTL_CODE(FILE_DEVICE_UNKNOWN,0x822,METHOD_BUFFERED,FILE_ANY_ACCESS)
+#define FILE_ON			CTL_CODE(FILE_DEVICE_UNKNOWN,0x831,METHOD_BUFFERED,FILE_ANY_ACCESS)
+#define FILE_OFF		CTL_CODE(FILE_DEVICE_UNKNOWN,0x832,METHOD_BUFFERED,FILE_ANY_ACCESS)
+#define OTHER_ON		CTL_CODE(FILE_DEVICE_UNKNOWN,0x841,METHOD_BUFFERED,FILE_ANY_ACCESS)
+#define OTHER_OFF		CTL_CODE(FILE_DEVICE_UNKNOWN,0x842,METHOD_BUFFERED,FILE_ANY_ACCESS)
+#define INFO_IN			CTL_CODE(FILE_DEVICE_UNKNOWN,0x851,METHOD_BUFFERED,FILE_ANY_ACCESS)
+#define INFO_OUT		CTL_CODE(FILE_DEVICE_UNKNOWN,0x852,METHOD_BUFFERED,FILE_ANY_ACCESS)
+#define GET_PID_EVENT	CTL_CODE(FILE_DEVICE_UNKNOWN,0x853,METHOD_BUFFERED,FILE_ANY_ACCESS)
 
 //////////////////////////////////////////////////////////////////////////
 //Event.type Define
 //////////////////////////////////////////////////////////////////////////
-#define EVENT_TPYE_PROC	1000
-#define EVENT_TPYE_REG	2000
-#define EVENT_TPYE_FILE	3000
-#define EVENT_TPYE_INFO	4000
+#define EVENT_TPYE_PROC	1
+#define EVENT_TPYE_REG	2
+#define EVENT_TPYE_FILE	3
+#define EVENT_TPYE_INFO	4
 
 
 
@@ -69,7 +70,7 @@ typedef struct Event{
 	UINT	Type;
 	UINT	Behavior;
 	ULONG	Pid;
-	CHAR	Target[MAX_PATH];
+	CHAR	Target[MAX_PATH+1];
 }Event;
 
 //导出全局变量 SSDT 表
@@ -222,7 +223,7 @@ NTSTATUS NewCreateFile(__out PHANDLE FileHandle,
 
 //	NtWriteFile()
 typedef NTSTATUS (*NTWRITEFILE)(__in HANDLE FileHandle, 
-								__in_opt HANDLE Event, 
+								__in_opt HANDLE hEvent, 
 								__in_opt PIO_APC_ROUTINE ApcRoutine, 
 								__in_opt PVOID ApcContext, 
 								__out PIO_STATUS_BLOCK IoStatusBlock,
@@ -232,7 +233,7 @@ typedef NTSTATUS (*NTWRITEFILE)(__in HANDLE FileHandle,
 								__in PULONG Key OPTIONAL);
 
 NTSTATUS NewWriteFile(__in HANDLE FileHandle, 
-					  __in_opt HANDLE Event, 
+					  __in_opt HANDLE hEvent, 
 					  __in_opt PIO_APC_ROUTINE ApcRoutine, 
 					  __in_opt PVOID ApcContext, 
 					  __out PIO_STATUS_BLOCK IoStatusBlock,
@@ -408,3 +409,10 @@ NTSTATUS NewDuplicateObject(__in HANDLE SourceProcessHandle,
 						    __in ACCESS_MASK DesiredAccess,
 						    __in ULONG Attributes,
 						    __in ULONG Options);
+
+// ZwQueryInformationProcess
+typedef NTSTATUS (*ZWQUERYINFORMATIONPROCESS)(__in HANDLE ProcessHandle,
+											  __in PROCESSINFOCLASS ProcessInformationClass,
+											  __out PVOID ProcessInformation,
+											  __in ULONG ProcessInformationLength,
+											  __out PULONG ReturnLength OPTIONAL);
