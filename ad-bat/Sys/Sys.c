@@ -13,19 +13,19 @@ Hook HookFunc[HOOKNUMS];
 UNICODE_STRING device_name = RTL_CONSTANT_STRING(L"\\Device\\AdBAT");
 UNICODE_STRING symb_link = RTL_CONSTANT_STRING(L"\\DosDevices\\AdBAT");
 
-//a event handle and object got from user mode 
-HANDLE hIoEvent;
-PVOID IoEventObject = NULL;
 
-Event GlobalEvent;
+//a event handle and object got from user mode 
+HANDLE hIoEvent = NULL;
+PVOID IoEventObject = NULL;
+PVOID IoBuff = NULL;
 
 //Happen when got a hook
-KEVENT UserJudgeEvent;
+HANDLE hJudgeEvent = NULL;
+PVOID JudgeEventObject = NULL;
+PVOID JudgeBuff = NULL;
 
-//The result after user make a judge
-BOOLEAN UserJudgeRst;
-
-BOOLEAN UserJudgeIsRun = FALSE;
+//管理共享内存的互斥量
+KMUTEX IoJudgeMutex;
 
 //自身进程句柄及PID
 ULONG	hGlobalSelfProcHandle = NULL;
@@ -38,7 +38,7 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 {
 	NTSTATUS status;
 	PDEVICE_OBJECT device;
-	int i = 0;
+	//int i = 0;
 
 	//DbgPrint("DriverEntry() Function...\n");
 
@@ -76,10 +76,10 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 	}
 
 	//开始SSDT Hook
-	for (i=0;i<HOOKNUMS;i++)
-	{
-		SsdtHook(&HookFunc[i],TRUE);
-	}
+	//for (i=0;i<HOOKNUMS;i++)
+	//{
+	//	SsdtHook(&HookFunc[i],TRUE);
+	//}
 
 	// 驱动卸载函数 
 	pDriverObject->DriverUnload = OnUnload;
@@ -1292,6 +1292,8 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 
 	NTSTATUS Status;
 
+	ULONG BuffPtr = NULL;
+
 	ULONG Code = IrpSp->Parameters.DeviceIoControl.IoControlCode;
 
 	ULONG InputLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
@@ -1391,34 +1393,12 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 	case INFO_OUT:
 		{
 			DbgPrint("INFO_OUT  begin...");
-			if (OutputLength<sizeof(Event))
-			{
-				RtlZeroMemory(pIoBuff,OutputLength);
-				pIrp->IoStatus.Information = 0;
-				break;
-			}
-			else
-			{
-				RtlCopyMemory(pIoBuff,&GlobalEvent,sizeof(Event));
-				pIrp->IoStatus.Information = sizeof(Event);
-				break;
-			}
-			DbgPrint("INFO_OUT  end...");
 		}
 		break;
 	case INFO_IN:
 		{
 			DbgPrint("INFO_IN");
-			if (InputLength<sizeof(BOOLEAN))
-			{
-				UserJudgeRst = TRUE;
-			}
-			else
-			{
-				UserJudgeRst = *(BOOLEAN*)pIoBuff;
-			}
 
-			KeSetEvent(&UserJudgeEvent,0,0);
 		}
 		break;
 	case GET_PID_EVENT:
@@ -1430,7 +1410,7 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 			dwGlobalSelfPid		= PsGetCurrentProcessId();
 
 			//Got event object from user mode
-			if (InputLength<sizeof(HANDLE)||pIoBuff==NULL)
+			if (InputLength!=sizeof(HANDLE)*4 || pIoBuff==NULL)
 			{
 				DbgPrint("Get event object failed...");
 				break;
@@ -1439,18 +1419,22 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 			hIoEvent = *(HANDLE*)pIoBuff;
 			ObReferenceObjectByHandle(hIoEvent,GENERIC_ALL,NULL,KernelMode,&IoEventObject,NULL);
 
-			//initialize the event that happen when get a kook
-			KeInitializeEvent(&UserJudgeEvent,SynchronizationEvent,FALSE);
+			hJudgeEvent = *(HANDLE*)((ULONG)pIoBuff+sizeof(ULONG));
+			ObReferenceObjectByHandle(hJudgeEvent,GENERIC_ALL,NULL,KernelMode,&JudgeEventObject,NULL);
+
+			RtlCopyMemory(&BuffPtr,(ULONG)pIoBuff+sizeof(ULONG)*2,sizeof(ULONG));
+			IoBuff = (PVOID)MmMapIoSpace(MmGetPhysicalAddress((PVOID)BuffPtr),sizeof(Event),0);
+
+			RtlCopyMemory(&BuffPtr,(ULONG)pIoBuff+sizeof(ULONG)*3,sizeof(ULONG));
+			JudgeBuff = (PVOID)MmMapIoSpace(MmGetPhysicalAddress((PVOID)BuffPtr),sizeof(BOOLEAN),0);
+
+			KeInitializeMutex(&IoJudgeMutex,0);
 
 			//开始SSDT Hook
 			for (i=0;i<HOOKNUMS;i++)
 			{
 				SsdtHook(&HookFunc[i],TRUE);
 			}
-
-
-
-			break;
 		}
 		break;
 	}
@@ -1486,21 +1470,17 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 BOOLEAN JudgeByUser(Event* pEvent)
 {
 	//TODO.. 与用户层及分发函数进行交互，待定...
-/*
-	LARGE_INTEGER SleepInterval;
-	SleepInterval.QuadPart = -10000;
-	while(UserJudgeIsRun)
-	{
-		KeDelayExecutionThread(KernelMode,0,&SleepInterval);
-	}
-	UserJudgeRst = TRUE;
-	RtlCopyMemory(&GlobalEvent,pEvent,sizeof(Event));
+
+	BOOLEAN JudgeRst;
+
+	KeWaitForSingleObject(&IoJudgeMutex,Executive,KernelMode,FALSE,NULL);
+	RtlCopyMemory(IoBuff,pEvent,sizeof(Event));
 	KeSetEvent((PKEVENT)IoEventObject,0,0);
-	KeWaitForSingleObject(&UserJudgeEvent,Executive,KernelMode,0,0);
-	KeResetEvent(&UserJudgeEvent);
-	UserJudgeRst = FALSE;
-*/
-	//return UserJudgeRst;
+	KeWaitForSingleObject((PKEVENT)JudgeEventObject,Executive,KernelMode,0,0);
+	KeResetEvent((PKEVENT)JudgeEventObject);
+	RtlCopyMemory(&JudgeRst,JudgeBuff,sizeof(BOOLEAN));
+	KeReleaseMutex(&IoJudgeMutex,FALSE);
+
 	return TRUE;
 }
 
@@ -1551,6 +1531,8 @@ NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle)
 	PVOID pObject = NULL;
 	PUNICODE_STRING pUnsiString;
 	ZWQUERYINFORMATIONPROCESS	ZwQueryInformationProcess;
+	ZWQUERYINFORMATIONTHREAD	ZwQueryInformationThread;
+	THREAD_BASIC_INFORMATION	tbi;
 	INT	nRet;
 
 	if (Handle == NULL)
@@ -1562,6 +1544,26 @@ NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle)
 	{
 		return status;
 	}
+
+	//if (pEvent->Behavior==NtQueueApcThread || pEvent->Behavior==NtTerminateThread)
+	//{
+	//	RtlInitUnicodeString(pUnsiString,L"ZwQueryInformationThread");;
+
+	//	ZwQueryInformationThread = MmGetSystemRoutineAddress(pUnsiString);
+	//	if (ZwQueryInformationThread == NULL)
+	//	{
+	//		ExFreePool(pUnsiString);
+	//		return status;
+	//	}
+
+	//	status = ZwQueryInformationThread(Handle,ThreadBasicInformation,&tbi,sizeof(THREAD_BASIC_INFORMATION),&nRet);
+	//	if (!NT_SUCCESS(status))
+	//	{
+	//		return status;
+	//	}	
+
+	//}
+
 
 	//进行各种类型判断
 	switch (pEvent->Type)
@@ -1607,3 +1609,5 @@ NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle)
 
 	return status;
 }
+
+
