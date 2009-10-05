@@ -13,8 +13,19 @@ Hook HookFunc[HOOKNUMS];
 UNICODE_STRING device_name = RTL_CONSTANT_STRING(L"\\Device\\AdBAT");
 UNICODE_STRING symb_link = RTL_CONSTANT_STRING(L"\\DosDevices\\AdBAT");
 
+//a event handle and object got from user mode 
+HANDLE hIoEvent;
+PVOID IoEventObject = NULL;
+
 Event GlobalEvent;
-Event* pGlobalEvent = &GlobalEvent;
+
+//Happen when got a hook
+KEVENT UserJudgeEvent;
+
+//The result after user make a judge
+BOOLEAN UserJudgeRst;
+
+BOOLEAN UserJudgeIsRun = FALSE;
 
 //自身进程句柄及PID
 ULONG	hGlobalSelfProcHandle = NULL;
@@ -27,8 +38,7 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 {
 	NTSTATUS status;
 	PDEVICE_OBJECT device;
-	//循环用
-	int i=0;
+	int i = 0;
 
 	//DbgPrint("DriverEntry() Function...\n");
 
@@ -116,9 +126,13 @@ NTSTATUS InitSsdtHook()
 {
 	//循环用
 	int i = 0;
+	UNICODE_STRING	szName;
 	UNICODE_STRING szDll;
 	PMDL pMdl;
 	RtlInitUnicodeString(&szDll, L"\\Device\\HarddiskVolume1\\Windows\\System32\\ntdll.dll");
+	RtlInitUnicodeString(&szName,L"ZwSetSystemInformation");
+
+
 
 	//DbgPrint("InitSsdtHoot() Function...");
 
@@ -181,7 +195,7 @@ NTSTATUS InitSsdtHook()
 	HookFunc[NtWriteVirtualMemory].ZwIndex = HOOK_INDEX(GetSsdtApi("ZwWriteVirtualMemory",&szDll));
 	HookFunc[NtWriteVirtualMemory].NewFunc = NewWriteVirtualMemory;
 	//NtSetSystemInformation()
-	HookFunc[NtSetSystemInformation].ZwIndex = HOOK_INDEX(GetSsdtApi("ZwSetSystemInformation",&szDll));
+	HookFunc[NtSetSystemInformation].ZwIndex = HOOK_INDEX(MmGetSystemRoutineAddress(&szName));
 	HookFunc[NtSetSystemInformation].NewFunc = NewSetSystemInformation;
 	//NtDuplicateObject()
 	HookFunc[NtDuplicateObject].ZwIndex = HOOK_INDEX(ZwDuplicateObject);
@@ -239,29 +253,31 @@ NTSTATUS SsdtHook(pHook pInfo,BOOLEAN bFlag)
 
 NTSTATUS NewLoadDriver(__in PUNICODE_STRING DriverServiceName)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTLOADDRIVER OldNtFunc;
 	
 	//DbgPrint("NewLoadDriver() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_INFO;
-	pGlobalEvent->Behavior	= NtLoadDriver;
-	String2Target(pGlobalEvent,DriverServiceName);
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_INFO;
+	pEvent->Behavior	= NtLoadDriver;
+	String2Target(pEvent,DriverServiceName);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -287,34 +303,35 @@ NTSTATUS NewCreateKey(__out PHANDLE KeyHandle,
 					  __in ULONG CreateOptions, 
 					  __out_opt PULONG Disposition)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtCreateKey].NtFunc;
+	NTCREATEKEY OldNtFunc = HookFunc[NtCreateKey].NtFunc;
 
 	//DbgPrint("NewCreateKey() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_REG;
-	pGlobalEvent->Behavior	= NtCreateKey;
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_REG;
+	pEvent->Behavior	= NtCreateKey;
 	if (ObjectAttributes!=NULL)
 	{
-		String2Target(pGlobalEvent,ObjectAttributes->ObjectName);
+		String2Target(pEvent,ObjectAttributes->ObjectName);
 	}
 	//Handle2Target(pGlobalEvent,KeyHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -343,30 +360,32 @@ NTSTATUS NewSetValueKey(__in HANDLE KeyHandle,
 						__in PVOID Data,
 						__in ULONG DataSize)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtSetValueKey].NtFunc;
+	NTSETVALUEKEY OldNtFunc = HookFunc[NtSetValueKey].NtFunc;
 
 	//DbgPrint("NewSetValueKey() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_REG;
-	pGlobalEvent->Behavior	= NtSetValueKey;
-	Handle2Target(pGlobalEvent,KeyHandle);
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_REG;
+	pEvent->Behavior	= NtSetValueKey;
+	Handle2Target(pEvent,KeyHandle);
+	String2Target(pEvent,ValueName);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -390,30 +409,31 @@ _label:
 
 NTSTATUS NewDeleteKey(__in HANDLE KeyHandle)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtDeleteKey].NtFunc;
+	NTDELETEKEY OldNtFunc = HookFunc[NtDeleteKey].NtFunc;
 
 	//DbgPrint("NewDeleteKey() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_REG;
-	pGlobalEvent->Behavior	= NtDeleteKey;
-	Handle2Target(pGlobalEvent,KeyHandle);
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_REG;
+	pEvent->Behavior	= NtDeleteKey;
+	Handle2Target(pEvent,KeyHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -431,31 +451,32 @@ _label:
 NTSTATUS NewDeleteValueKey(__in HANDLE KeyHandle, 
 						   __in PUNICODE_STRING ValueName)
 {
-
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtDeleteVauleKey].NtFunc;
+	NTDELETEVALUEKEY OldNtFunc = HookFunc[NtDeleteVauleKey].NtFunc;
 
 	//DbgPrint("NewDeleteValueKey() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_REG;
-	pGlobalEvent->Behavior	= NtDeleteVauleKey;
-	Handle2Target(pGlobalEvent,KeyHandle);
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_REG;
+	pEvent->Behavior	= NtDeleteVauleKey;
+	Handle2Target(pEvent,KeyHandle);
+	String2Target(pEvent,ValueName);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -484,36 +505,37 @@ NTSTATUS NewCreateFile(__out PHANDLE FileHandle,
 					   __in PVOID EaBuffer OPTIONAL,
 					   __in ULONG EaLength)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtCreateFile].NtFunc;
+	NTCREATEFILE OldNtFunc = HookFunc[NtCreateFile].NtFunc;
 
 	//DbgPrint("NewCreateFile() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_FILE;
-	pGlobalEvent->Behavior	= NtCreateFile;
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_FILE;
+	pEvent->Behavior	= NtCreateFile;
 	if (ObjectAttributes!=NULL)
 	{
-		String2Target(pGlobalEvent,ObjectAttributes->ObjectName);
+		String2Target(pEvent,ObjectAttributes->ObjectName);
 	}
 
 	
 	//Handle2Target(pGlobalEvent,FileHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -541,7 +563,7 @@ _label:
 
 //	NtWriteFile()
 NTSTATUS NewWriteFile(__in HANDLE FileHandle, 
-					  __in_opt HANDLE Event, 
+					  __in_opt HANDLE hEvent, 
 					  __in_opt PIO_APC_ROUTINE ApcRoutine, 
 					  __in_opt PVOID ApcContext, 
 					  __out PIO_STATUS_BLOCK IoStatusBlock,
@@ -550,41 +572,42 @@ NTSTATUS NewWriteFile(__in HANDLE FileHandle,
 					  __in PLARGE_INTEGER ByteOffset OPTIONAL,
 					  __in PULONG Key OPTIONAL)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtWriteFile].NtFunc;
+	NTWRITEFILE OldNtFunc = HookFunc[NtWriteFile].NtFunc;
 
 	//DbgPrint("NewWriteFile() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_FILE;
-	pGlobalEvent->Behavior	= NtWriteFile;
-	Handle2Target(pGlobalEvent,FileHandle);
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_FILE;
+	pEvent->Behavior	= NtWriteFile;
+	Handle2Target(pEvent,FileHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	//if (JudgeByUser(pEvent))
+	//{
+	//	goto _label;
+	//}
+	//else
+	//{
+	//	//TODO.. 善后工作
+	//}
 
 _label:
 	status = OldNtFunc(FileHandle,
-					   Event,
+					   hEvent,
 					   ApcRoutine,
 					   ApcContext,
 					   IoStatusBlock,
@@ -603,30 +626,31 @@ NTSTATUS NewSetInformationFile(__in HANDLE FileHandle,
 							   __in ULONG FileInformationLength,
 							   __in FILE_INFORMATION_CLASS FileInformationClass)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtSetInformationFile].NtFunc;
+	NTSETINFORMATIONFILE OldNtFunc = HookFunc[NtSetInformationFile].NtFunc;
 
 	//DbgPrint("NewSetInformationFile() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_FILE;
-	pGlobalEvent->Behavior	= NtSetInformationFile;
-	Handle2Target(pGlobalEvent,FileHandle);
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_FILE;
+	pEvent->Behavior	= NtSetInformationFile;
+	Handle2Target(pEvent,FileHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -651,37 +675,44 @@ NTSTATUS NewOpenProcess(__out PHANDLE ProcessHandle,
 						__in POBJECT_ATTRIBUTES ObjectAttributes, 
 						__in_opt PCLIENT_ID ClientId)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 
-	NTLOADDRIVER OldNtFunc = HookFunc[NtOpenProcess].NtFunc;
+	NTOPENPROCESS OldNtFunc = HookFunc[NtOpenProcess].NtFunc;
 
 	//DbgPrint("NewOpenProcess() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_PROC;
-	pGlobalEvent->Behavior	= NtOpenProcess;
-	String2Target(pGlobalEvent,ObjectAttributes->ObjectName);
+	//RtlZeroMemory(pGlobalEvent,sizeof(Event));
+	//pGlobalEvent->Type		= EVENT_TPYE_PROC;
+	//pGlobalEvent->Behavior	= NtOpenProcess;
+	//String2Target(pGlobalEvent,ObjectAttributes->ObjectName);
+
+	//不填充行为记录结构体，只判断是否对Ad-BAT自身有危害
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
-	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	//是否对Ad-BAT不利？
+	if (ClientId->UniqueProcess == pEvent->Pid)
 	{
-		goto _label;
+		goto _label_evil;
 	}
-	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	////是否在白名单中？
+	//if (IsInWhiteList(pGlobalEvent))
+	//{
+	//	goto _label;
+	//}
+	////用户层判断结果？
+	//if (JudgeByUser(pGlobalEvent))
+	//{
+	//	goto _label;
+	//}
+_label_evil:
+	//TODO.. 善后工作
 
 _label:
 	status = OldNtFunc(ProcessHandle,
@@ -702,33 +733,31 @@ NTSTATUS NewCreateProcess(__out PHANDLE ProcessHandle,
 						  __in HANDLE DebugPort OPTIONAL,
 						  __in HANDLE ExceptionPort OPTIONAL)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtCreateProcess].NtFunc;
+	NTCREATEPROCESS OldNtFunc = HookFunc[NtCreateProcess].NtFunc;
 
 	//DbgPrint("NewCreateProcess() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_PROC;
-	pGlobalEvent->Behavior	= NtCreateProcess;
-	if (ObjectAttributes!=NULL)
-	{
-		String2Target(pGlobalEvent,ObjectAttributes->ObjectName);
-	}
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_PROC;
+	pEvent->Behavior	= NtCreateProcess;
+	Handle2Target(pEvent,SectionHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -761,33 +790,31 @@ NTSTATUS NewCreateProcessEx(__out PHANDLE ProcessHandle,
 							__in HANDLE ExceptionPort OPTIONAL,
 							__in HANDLE Unknown)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtCreateProcessEx].NtFunc;
+	NTCREATEPROCESSEX OldNtFunc = HookFunc[NtCreateProcessEx].NtFunc;
 
 	//DbgPrint("NewCreateProcessEx() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_PROC;
-	pGlobalEvent->Behavior	= NtCreateProcessEx;
-	if (ObjectAttributes!=NULL)
-	{
-		String2Target(pGlobalEvent,ObjectAttributes->ObjectName);
-	}
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_PROC;
+	pEvent->Behavior	= NtCreateProcessEx;
+	Handle2Target(pEvent,SectionHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -814,30 +841,31 @@ _label:
 NTSTATUS NewTerminateProcess(__in_opt HANDLE ProcessHandle, 
 							 __in NTSTATUS ExitStatus)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtTerminateProcess].NtFunc;
+	NTTERMINATEPROCESS OldNtFunc = HookFunc[NtTerminateProcess].NtFunc;
 
 	//DbgPrint("NewTerminateProcess() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_PROC;
-	pGlobalEvent->Behavior	= NtTerminateProcess;
-	Handle2Target(pGlobalEvent,ProcessHandle);
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_PROC;
+	pEvent->Behavior	= NtTerminateProcess;
+	Handle2Target(pEvent,ProcessHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -863,40 +891,46 @@ NTSTATUS NewCreateThread(__out PHANDLE ThreadHandle,
 						 __in PUSER_STACK UserStack,
 						 __in BOOLEAN CreateSuspended)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 
-	NTLOADDRIVER OldNtFunc = HookFunc[NtCreateThread].NtFunc;
+	NTCREATETHREAD OldNtFunc = HookFunc[NtCreateThread].NtFunc;
 
 	//DbgPrint("NewCreateThread() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_PROC;
-	pGlobalEvent->Behavior	= NtCreateThread;
-	if (ObjectAttributes!=NULL)
-	{
-		String2Target(pGlobalEvent,ObjectAttributes->ObjectName);
-	}
+	//RtlZeroMemory(pGlobalEvent,sizeof(Event));
+	//pGlobalEvent->Type		= EVENT_TPYE_PROC;
+	//pGlobalEvent->Behavior	= NtCreateThread;
+
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
-	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	//是否对Ad-BAT不利？
+	if (ClientId->UniqueProcess == pEvent->Pid)
 	{
-		goto _label;
+		goto _label_evil;
 	}
-	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	////是否在白名单中？
+	//if (IsInWhiteList(pGlobalEvent))
+	//{
+	//	goto _label;
+	//}
+	////用户层判断结果？
+	//if (JudgeByUser(pGlobalEvent))
+	//{
+	//	goto _label;
+	//}
+	//else
+	//{
+	//	//TODO.. 善后工作
+	//}
+_label_evil:
+	//TODO.. 善后工作
 
 _label:
 	status = OldNtFunc(ThreadHandle,
@@ -915,30 +949,31 @@ _label:
 NTSTATUS NewTerminateThread(__in HANDLE ThreadHandle OPTIONAL,
 							__in NTSTATUS ExitStatus)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtTerminateThread].NtFunc;
+	NTTERMINATETHREAD OldNtFunc = HookFunc[NtTerminateThread].NtFunc;
 
 	//DbgPrint("NewTerminateThread() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_PROC;
-	pGlobalEvent->Behavior	= NtTerminateThread;
-	Handle2Target(pGlobalEvent,ThreadHandle);
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_PROC;
+	pEvent->Behavior	= NtTerminateThread;
+	Handle2Target(pEvent,ThreadHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -962,30 +997,31 @@ NTSTATUS NewQueueApcThread(__in HANDLE ThreadHandle,
 						   __in PVOID Argument1 OPTIONAL,
 						   __in PVOID Argument2 OPTIONAL)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtQueueApcThread].NtFunc;
+	NTQUEUEAPCTHREAD OldNtFunc = HookFunc[NtQueueApcThread].NtFunc;
 
 	//DbgPrint("NewQueueApcThread() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_PROC;
-	pGlobalEvent->Behavior	= NtQueueApcThread;
-	Handle2Target(pGlobalEvent,ThreadHandle);
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_PROC;
+	pEvent->Behavior	= NtQueueApcThread;
+	Handle2Target(pEvent,ThreadHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -1012,29 +1048,30 @@ NTSTATUS NewWriteVirtualMemory(__in HANDLE ProcessHandle,
 							   __in ULONG BufferLength,
 							   __out PULONG ReturnLength OPTIONAL)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
-	NTLOADDRIVER OldNtFunc = HookFunc[NtWriteVirtualMemory].NtFunc;
+	NTWRITEVIRTUALMEMORY OldNtFunc = HookFunc[NtWriteVirtualMemory].NtFunc;
 
 	//DbgPrint("NewWriteVirtualMemory() Function...\n");
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_PROC;
-	pGlobalEvent->Behavior	= NtWriteVirtualMemory;
-	Handle2Target(pGlobalEvent,ProcessHandle);
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_PROC;
+	pEvent->Behavior	= NtWriteVirtualMemory;
+	Handle2Target(pEvent,ProcessHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
@@ -1053,18 +1090,52 @@ _label:
 	return status;
 }
 
-
 //	NtSetSystemInformation()
 NTSTATUS NewSetSystemInformation(__in SYSTEM_INFORMATION_CLASS SystemInformationClass,
 								 __in __out PVOID SystemInformation,
 								 __in ULONG SystemInformationLength)
 {
+	Event	LocalEvent;
+	Event*	pEvent = &LocalEvent;
 	NTSTATUS status;
 
 	NTSETSYSTEMINFORMATION OldNtFunc = HookFunc[NtSetSystemInformation].NtFunc;
 
+	//是否加载驱动？
+	if (SystemInformationClass !=  SystemLoadAndCallImage)
+	{
+		goto _label;
+	}
+
 	//DbgPrint("NewSetSystemInformation() Function...\n");
 
+	//填充行为记录结构体
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_INFO;
+	pEvent->Behavior	= NtSetSystemInformation;
+	String2Target(pEvent,SystemInformation);
+
+	//是否自身行为？
+	if (IsSelfBehavior(pEvent))
+	{
+		goto _label;
+	}
+	//是否在白名单中？
+	if (IsInWhiteList(pEvent))
+	{
+		goto _label;
+	}
+	//用户层判断结果？
+	if (JudgeByUser(pEvent))
+	{
+		goto _label;
+	}
+	else
+	{
+		//TODO.. 善后工作
+	}
+
+_label:
 	status = OldNtFunc(SystemInformationClass,
 					   SystemInformation,
 					   SystemInformationLength);
@@ -1081,37 +1152,42 @@ NTSTATUS NewDuplicateObject(__in HANDLE SourceProcessHandle,
 							__in ULONG Attributes,
 							__in ULONG Options)
 {
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 
-	NTLOADDRIVER OldNtFunc = HookFunc[NtDuplicateObject].NtFunc;
+	NTDUPLICATEOBJECT OldNtFunc = HookFunc[NtDuplicateObject].NtFunc;
 
 	//DbgPrint("NewDuplicateObject() Function...\n");
 
 	//填充行为记录结构体
-	RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	pGlobalEvent->Type		= EVENT_TPYE_INFO;
-	pGlobalEvent->Behavior	= NtDuplicateObject;
-	Handle2Target(pGlobalEvent,TargetProcessHandle);
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Type		= EVENT_TPYE_INFO;
+	pEvent->Behavior	= NtDuplicateObject;
+	Handle2Target(pEvent,TargetProcessHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pGlobalEvent))
+	if (IsSelfBehavior(pEvent))
 	{
 		goto _label;
 	}
+	//是否对Ad-BAT不利？
+	if (TargetProcessHandle == PsGetCurrentProcess())
+	{
+		goto _label_evil;
+	}
 	//是否在白名单中？
-	if (IsInWhiteList(pGlobalEvent))
+	if (IsInWhiteList(pEvent))
 	{
 		goto _label;
 	}
 	//用户层判断结果？
-	if (JudgeByUser(pGlobalEvent))
+	if (JudgeByUser(pEvent))
 	{
 		goto _label;
 	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+_label_evil:
+
 
 _label:
 	status = OldNtFunc(SourceProcessHandle,
@@ -1211,6 +1287,7 @@ NTSTATUS CreateClose(PDEVICE_OBJECT DeviceObject,PIRP irp)
 //IOCONTROL 分发函数
 NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 {
+	int i = 0;
 	PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(pIrp);
 
 	NTSTATUS Status;
@@ -1313,22 +1390,67 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 		break;
 	case INFO_OUT:
 		{
-			//DbgPrint("INFO_OUT");
+			DbgPrint("INFO_OUT  begin...");
+			if (OutputLength<sizeof(Event))
+			{
+				RtlZeroMemory(pIoBuff,OutputLength);
+				pIrp->IoStatus.Information = 0;
+				break;
+			}
+			else
+			{
+				RtlCopyMemory(pIoBuff,&GlobalEvent,sizeof(Event));
+				pIrp->IoStatus.Information = sizeof(Event);
+				break;
+			}
+			DbgPrint("INFO_OUT  end...");
 		}
 		break;
 	case INFO_IN:
 		{
-			//DbgPrint("INFO_IN");
+			DbgPrint("INFO_IN");
+			if (InputLength<sizeof(BOOLEAN))
+			{
+				UserJudgeRst = TRUE;
+			}
+			else
+			{
+				UserJudgeRst = *(BOOLEAN*)pIoBuff;
+			}
+
+			KeSetEvent(&UserJudgeEvent,0,0);
 		}
 		break;
-	case INFO_PID:
+	case GET_PID_EVENT:
 		{
-			//DbgPrint("INFO_PID");
+			//DbgPrint("GET_PID_EVENT");
 
 			//获得自身进程句柄及PID
 			hGlobalSelfProcHandle = PsGetCurrentProcess();
 			dwGlobalSelfPid		= PsGetCurrentProcessId();
 
+			//Got event object from user mode
+			if (InputLength<sizeof(HANDLE)||pIoBuff==NULL)
+			{
+				DbgPrint("Get event object failed...");
+				break;
+			}
+
+			hIoEvent = *(HANDLE*)pIoBuff;
+			ObReferenceObjectByHandle(hIoEvent,GENERIC_ALL,NULL,KernelMode,&IoEventObject,NULL);
+
+			//initialize the event that happen when get a kook
+			KeInitializeEvent(&UserJudgeEvent,SynchronizationEvent,FALSE);
+
+			//开始SSDT Hook
+			for (i=0;i<HOOKNUMS;i++)
+			{
+				SsdtHook(&HookFunc[i],TRUE);
+			}
+
+
+
+			break;
 		}
 		break;
 	}
@@ -1346,7 +1468,7 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 //是否为自身行为
 BOOLEAN IsSelfBehavior(Event* pEvent)
 {
-	pGlobalEvent->Pid = PsGetCurrentProcessId();
+	pEvent->Pid = PsGetCurrentProcessId();
 	
 	return hGlobalSelfProcHandle == PsGetCurrentProcess() ? TRUE : FALSE;
 }
@@ -1359,12 +1481,26 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 
 	return FALSE;
 }
+
 //用户层判断结果反馈
 BOOLEAN JudgeByUser(Event* pEvent)
 {
 	//TODO.. 与用户层及分发函数进行交互，待定...
-
-
+/*
+	LARGE_INTEGER SleepInterval;
+	SleepInterval.QuadPart = -10000;
+	while(UserJudgeIsRun)
+	{
+		KeDelayExecutionThread(KernelMode,0,&SleepInterval);
+	}
+	UserJudgeRst = TRUE;
+	RtlCopyMemory(&GlobalEvent,pEvent,sizeof(Event));
+	KeSetEvent((PKEVENT)IoEventObject,0,0);
+	KeWaitForSingleObject(&UserJudgeEvent,Executive,KernelMode,0,0);
+	KeResetEvent(&UserJudgeEvent);
+	UserJudgeRst = FALSE;
+*/
+	//return UserJudgeRst;
 	return TRUE;
 }
 
@@ -1376,17 +1512,30 @@ BOOLEAN JudgeByUser(Event* pEvent)
 //从字符串获得
 NTSTATUS String2Target(Event* pEvent,PUNICODE_STRING pUnicodeString)
 {
-	NTSTATUS status;
+	NTSTATUS status = STATUS_UNSUCCESSFUL;
 	ANSI_STRING AnsiString;
+	char* pStr = pEvent->Target;
+	DWORD nSize = 0;
+	while (*pStr != NULL)
+	{
+		pStr++;
+		nSize++;
+	}
+
+	if (nSize)
+	{
+		pEvent->Target[nSize] = '\\';
+	}
+	
 	AnsiString.Length = 0;
-	AnsiString.MaximumLength = 260;
-	AnsiString.Buffer = pEvent->Target;
+	AnsiString.MaximumLength = MAX_PATH-nSize;
+	AnsiString.Buffer = --pStr;
 	if (pUnicodeString == NULL)
 	{
-		return STATUS_UNSUCCESSFUL;
+		return status;
 	}
+
 	status = RtlUnicodeStringToAnsiString(&AnsiString,pUnicodeString,FALSE);
-	
 	if (!NT_SUCCESS(status))
 	{
 		return status;
@@ -1394,28 +1543,64 @@ NTSTATUS String2Target(Event* pEvent,PUNICODE_STRING pUnicodeString)
 
 	return STATUS_SUCCESS;
 }
+
 //从句柄获得
 NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle)
 {
-	NTSTATUS status;
+	NTSTATUS status = STATUS_UNSUCCESSFUL;
 	PVOID pObject = NULL;
 	PUNICODE_STRING pUnsiString;
+	ZWQUERYINFORMATIONPROCESS	ZwQueryInformationProcess;
 	INT	nRet;
-	pUnsiString = ExAllocatePool(NonPagedPool,1024);
+
+	if (Handle == NULL)
+	{
+		return status;
+	}
+	pUnsiString = ExAllocatePool(NonPagedPool,1028);
 	if (pUnsiString == NULL)
 	{
-		return STATUS_UNSUCCESSFUL;
-	}
-	
-	status = ObReferenceObjectByHandle(Handle,NULL,NULL,KernelMode,&pObject,NULL);
-	if (!NT_SUCCESS(status))
-	{
 		return status;
 	}
-	status = ObQueryNameString(pObject,pUnsiString,1024,&nRet);
-	if (!NT_SUCCESS(status))
+
+	//进行各种类型判断
+	switch (pEvent->Type)
 	{
-		return status;
+	case EVENT_TPYE_REG:
+	case EVENT_TPYE_FILE:
+		{
+			status = ObReferenceObjectByHandle(Handle,NULL,NULL,KernelMode,&pObject,NULL);
+			if (!NT_SUCCESS(status) || pObject==NULL)
+			{
+				return status;
+			}
+			status = ObQueryNameString(pObject,pUnsiString,512,&nRet);
+			if (!NT_SUCCESS(status))
+			{
+				ObDereferenceObject(pObject);
+				return status;
+			}
+		}
+		break;
+	case EVENT_TPYE_PROC:
+	case EVENT_TPYE_INFO:
+		{
+			RtlInitUnicodeString(pUnsiString,L"ZwQueryInformationProcess");
+
+			ZwQueryInformationProcess = MmGetSystemRoutineAddress(pUnsiString);
+			if (ZwQueryInformationProcess == NULL)
+			{
+				ExFreePool(pUnsiString);
+				return status;
+			}
+
+			status = ZwQueryInformationProcess(Handle,ProcessImageFileName,pUnsiString,1028,&nRet);
+			if (!NT_SUCCESS(status))
+			{
+				return status;
+			}	
+		}
+		break;
 	}
 	status = String2Target(pEvent,pUnsiString);
 	ExFreePool(pUnsiString);
