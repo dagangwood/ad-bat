@@ -147,6 +147,11 @@
 				RelativePath=".\Sys.c"
 				>
 			</File>
+			<Filter
+				Name="Resource Files"
+				Filter="rc;mc;ico;cur;bmp;dlg;rc2"
+				>
+			</Filter>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -160,11 +165,6 @@
 				RelativePath=".\Sys.h"
 				>
 			</File>
-		</Filter>
-		<Filter
-			Name="Resource Files"
-			Filter="rc;mc;ico;cur;bmp;dlg;rc2"
-			>
 		</Filter>
 		<Filter
 			Name="Special Files"
