@@ -1,157 +1,157 @@
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-#?				注册表黑名单与此名单匹配的行为需要传至用户态判断
-#?			黑名单应该范围广泛，防止有漏网之鱼，白名单应该范围较小，防止漏网之鱼....
-#?还需要做的工作：整理、修改并统一根键名称、继续完善规则
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
+????????????????????????????????????????????????????
+?注册表黑名单与此名单匹配的行为需要传至用户态判断
+?黑名单应该范围广泛，防止有漏网之鱼，白名单应该范围较小，防止漏网之鱼....
+?还需要做的工作：整理、修改并统一根键名称、继续完善规则
+????????????????????????????????????????????????????
 
 
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-#?		普通开机自启动项
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-#?全局用户策略，包括策略 Run
-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\policies
-#?当前用户策略，包括策略 Run
-HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Policies
-#?开关机自动运行脚本
-HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\System\Scripts
-#?包括 Load
-HKEY_CURRENT_USER\Software\Microsoft\Windows NT\CurrentVersion\Windows
-#?全局 Run
-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run
-#?当前用户 Run
-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run
-#?全局 RunOnce）
-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce
-#?当前用户 RunOnce
-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce
-#?全局 RunOnceEx
-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnceEx
-#?当前用户 RunOnceEx
-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnceEx
-#?全局 RunServices
-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServices
-#?当前用户 RunServices
-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServices
-#?全局 RunServicesOnce
-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServicesOnce
-#?当前用户 RunServicesOnce
-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServicesOnce
+??????????????????????????
+?		普通开机自启动项
+??????????????????????????
+?全局用户策略，包括策略 Run
+-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\policies
+?当前用户策略，包括策略 Run
+-HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Policies
+?开关机自动运行脚本
+-HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\System\Scripts
+?包括 Load
+-HKEY_CURRENT_USER\Software\Microsoft\Windows NT\CurrentVersion\Windows
+?全局 Run
+-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run
+?当前用户 Run
+-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run
+?全局 RunOnce）
+-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce
+?当前用户 RunOnce
+-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce
+?全局 RunOnceEx
+-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnceEx
+?当前用户 RunOnceEx
+-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnceEx
+?全局 RunServices
+-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServices
+?当前用户 RunServices
+-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServices
+?全局 RunServicesOnce
+-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServicesOnce
+?当前用户 RunServicesOnce
+-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServicesOnce
 
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-#?		开机自启动的特殊方式
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-#?BootExcute启动
-HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager
-#?命令行自动运行
-HKEY_CURRENT_USER\Software\Microsoft\Command Processor
-HKEY_LOCAL_MACHINE\Software\Microsoft\Command Processor
-#?ShellExecuteHooks(打开文件、双击图标等关联启动)
-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\ShellExecuteHooks
-HKLM\System\ControlSet001\Control\Session Manager
-HKLM\System\ControlSet002\Control\Session Manager
-HKLM\System\CurrentControlSet\Control\Session Manager
-#?Winlogon下的UIHost、Shell、Userinit都可以实现自启动
-HKLM\Software\Microsoft\Windows NT\CurrentVersion\Winlogon
-HKCU\Software\Microsoft\Windows NT\CurrentVersion\Winlogon
-#?ActiveX自启动
-HKLM\Software\Microsoft\Active Setup\Installed Components
+??????????????????????????
+?		开机自启动的特殊方式
+??????????????????????????
+?BootExcute启动
+-HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager
+?命令行自动运行
+-HKEY_CURRENT_USER\Software\Microsoft\Command Processor
+-HKEY_LOCAL_MACHINE\Software\Microsoft\Command Processor
+?ShellExecuteHooks(打开文件、双击图标等关联启动)
+-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\ShellExecuteHooks
+-HKLM\System\ControlSet001\Control\Session Manager
+-HKLM\System\ControlSet002\Control\Session Manager
+-HKLM\System\CurrentControlSet\Control\Session Manager
+?Winlogon下的UIHost、Shell、Userinit都可以实现自启动
+-HKLM\Software\Microsoft\Windows NT\CurrentVersion\Winlogon
+-HKCU\Software\Microsoft\Windows NT\CurrentVersion\Winlogon
+?ActiveX自启动
+-HKLM\Software\Microsoft\Active Setup\Installed Components
 
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-#?		文件关联型劫持
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-HKEY_CLASSES_ROOT\.exe
-HKEY_CLASSES_ROOT\exefile
-HKEY_CLASSES_ROOT\.dll
-HKEY_CLASSES_ROOT\dllfile
-HKEY_CLASSES_ROOT\.com
-HKEY_CLASSES_ROOT\comfile
-HKEY_CLASSES_ROOT\.pif
-HKEY_CLASSES_ROOT\piffile
-HKEY_CLASSES_ROOT\.scr
-HKEY_CLASSES_ROOT\scrfile
-HKEY_CLASSES_ROOT\.cmd
-HKEY_CLASSES_ROOT\cmdfile
-HKEY_CLASSES_ROOT\.txt
-HKEY_CLASSES_ROOT\txtfile
-HKEY_CLASSES_ROOT\.reg
-HKEY_CLASSES_ROOT\regfile
-HKEY_CLASSES_ROOT\Drive
-HKEY_CLASSES_ROOT\Folder
+??????????????????????????
+?		文件关联型劫持
+??????????????????????????
+-HKEY_CLASSES_ROOT\.exe
+-HKEY_CLASSES_ROOT\exefile
+-HKEY_CLASSES_ROOT\.dll
+-HKEY_CLASSES_ROOT\dllfile
+-HKEY_CLASSES_ROOT\.com
+-HKEY_CLASSES_ROOT\comfile
+-HKEY_CLASSES_ROOT\.pif
+-HKEY_CLASSES_ROOT\piffile
+-HKEY_CLASSES_ROOT\.scr
+-HKEY_CLASSES_ROOT\scrfile
+-HKEY_CLASSES_ROOT\.cmd
+-HKEY_CLASSES_ROOT\cmdfile
+-HKEY_CLASSES_ROOT\.txt
+-HKEY_CLASSES_ROOT\txtfile
+-HKEY_CLASSES_ROOT\.reg
+-HKEY_CLASSES_ROOT\regfile
+-HKEY_CLASSES_ROOT\Drive
+-HKEY_CLASSES_ROOT\Folder
 
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-#?		服务添加、修改
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-HKLM\SYSTEM\CurrentControlSet\Services
-HKLM\SYSTEM\ControlSet001\Services
-HKLM\SYSTEM\ControlSet002\Services
+??????????????????????????
+?		服务添加、修改
+??????????????????????????
+-HKLM\SYSTEM\CurrentControlSet\Services
+-HKLM\SYSTEM\ControlSet001\Services
+-HKLM\SYSTEM\ControlSet002\Services
 
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-#?		Winsock攻击
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Winsock
-HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WinSock2
-HKLM\SYSTEM\ControlSet001\Services\WinSock2
-HKLM\SYSTEM\ControlSet002\Services\WinSock2
+??????????????????????????
+?		Winsock攻击
+??????????????????????????
+-HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Winsock
+-HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WinSock2
+-HKLM\SYSTEM\ControlSet001\Services\WinSock2
+-HKLM\SYSTEM\ControlSet002\Services\WinSock2
 
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-#?		浏览器安全
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Internet Explorer
-HKEY_CURRENT_USER\Software\Microsoft\Internet Explorer
-#?以下是比较详细的三条规则：IE工具栏、IE扩展、IE搜索，流氓软件常修改的位置
-HKCU\Software\Microsoft\Internet Explorer\URLSearchHooks
-HKCU\Software\Microsoft\Internet Explorer\Toolbar
-HKCU\Software\Microsoft\Internet Explorer\Extensions
+??????????????????????????
+?		浏览器安全
+??????????????????????????
+-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Internet Explorer
+-HKEY_CURRENT_USER\Software\Microsoft\Internet Explorer
+?以下是比较详细的三条规则：IE工具栏、IE扩展、IE搜索，流氓软件常修改的位置
+-HKCU\Software\Microsoft\Internet Explorer\URLSearchHooks
+-HKCU\Software\Microsoft\Internet Explorer\Toolbar
+-HKCU\Software\Microsoft\Internet Explorer\Extensions
 
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-#?	一些CurrentVersion中奇怪的敏感位置
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-HKLM\Software\Microsoft\Windows\CurrentVersion\AppManagement\ARPCache
-HKLM\Software\Microsoft\Windows\CurrentVersion\ShellServiceObjectDelayload
-HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\SharedTaskScheduler
-HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\SharedExecuteHooks
-HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folder
-HKLM\Software\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved
-
-
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-#?		其它安全防护点
-#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?#?
-#?防火墙规则
-HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy
-
-#?磁盘加载点关联
-HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\MountPoints2
-
-#?屏保被动启动
-HKCU\Control Panel\desktop
-
-#?外壳服务对象预加载
-HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\ShellServiceObjectDelayLoad
-
-#?应用程序映像劫持
-HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options
-
-#?BHO劫持
-HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\Browser Helper Objects
-
-#?劫持驱动器打开操作
-HKEY_CLASSES_ROOT\Drive\shell\find\command
-
-#?打印机监控
-HKLM\System\CurrentControlSet\Control\print\Monitors
+??????????????????????????
+?	一些CurrentVersion中奇怪的敏感位置
+??????????????????????????
+-HKLM\Software\Microsoft\Windows\CurrentVersion\AppManagement\ARPCache
+-HKLM\Software\Microsoft\Windows\CurrentVersion\ShellServiceObjectDelayload
+-HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\SharedTaskScheduler
+-HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\SharedExecuteHooks
+-HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folder
+-HKLM\Software\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved
 
 
-#?Lsa安全：Authentication Packages、Notification Packages、Security Packages，不懂
-HKLM\System\CurrentControlSet\Control\Lsa
+??????????????????????????
+?		其它安全防护点
+??????????????????????????
+?防火墙规则
+-HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy
 
-#?KnownDlls安全，不懂
-HKLM\System\ControlSet001\Control\Session Manager\KnownDlls
-HKLM\System\ControlSet002\Control\Session Manager\KnownDlls
-HKLM\System\CurrentControlSet\Control\Session Manager\KnownDlls
+?磁盘加载点关联
+-HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\MountPoints2
 
-#?不懂，懒得查了
-HKLM\Software\Classes\Folder\shellex\ColumnHandlers
+?屏保被动启动
+-HKCU\Control Panel\desktop
+
+?外壳服务对象预加载
+-HKCU\Software\Microsoft\Windows NT\CurrentVersion\ShellServiceObjectDelayLoad
+
+?应用程序映像劫持
+-HKCU\Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options
+
+?BHO劫持
+-HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\Browser Helper Objects
+
+?劫持驱动器打开操作
+-HKEY_CLASSES_ROOT\Drive\shell\find\command
+
+?打印机监控
+-HKLM\System\CurrentControlSet\Control\print\Monitors
+
+
+?Lsa安全：Authentication Packages、Notification Packages、Security Packages，不懂
+-HKLM\System\CurrentControlSet\Control\Lsa
+
+?KnownDlls安全，不懂
+-HKLM\System\ControlSet001\Control\Session Manager\KnownDlls
+-HKLM\System\ControlSet002\Control\Session Manager\KnownDlls
+-HKLM\System\CurrentControlSet\Control\Session Manager\KnownDlls
+
+?不懂，懒得查了
+-HKLM\Software\Classes\Folder\shellex\ColumnHandlers
 
 
 
