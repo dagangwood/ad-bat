@@ -36,6 +36,7 @@
 		</Configuration>
 		<Configuration
 			Name="WXP checked|Win32"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory=".\"
 			ConfigurationType="0"
 			InheritedPropertySheets=".\Sys.vsprops"
@@ -117,6 +118,7 @@
 		</Configuration>
 		<Configuration
 			Name="WXP2K checked (PREfast)|Win32"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory=".\"
 			ConfigurationType="0"
 			InheritedPropertySheets=".\Sys.vsprops"

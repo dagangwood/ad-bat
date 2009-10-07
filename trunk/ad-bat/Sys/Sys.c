@@ -41,7 +41,6 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 
 					 __in PUNICODE_STRING pRegistryPath)
 {
-	UNICODE_STRING	FileListName,RegListName;
 	NTSTATUS status;
 	PDEVICE_OBJECT device;
 	//int i = 0;
@@ -75,11 +74,7 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 	//device->Flags &= ~DO_DEVICE_INITIALIZING;
 
 
-	RtlInitUnicodeString(&FileListName,L"\\??\\C:\\File.rul");
-	ReadRules(&FileListName,&FileListHdr);
 
-	RtlInitUnicodeString(&RegListName,L"\\??\\C:\\Registry.rul");
-	ReadRules(&RegListName,&RegListHdr);
 
 
 	//Display(&FileListHdr);
@@ -1308,7 +1303,7 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 {
 	int i = 0;
 	PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(pIrp);
-
+	UNICODE_STRING	FileListName,RegListName;
 	NTSTATUS Status;
 
 	ULONG BuffPtr = NULL;
@@ -1428,6 +1423,14 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 			hGlobalSelfProcHandle = PsGetCurrentProcess();
 			dwGlobalSelfPid		= PsGetCurrentProcessId();
 
+
+			//读取规则库文件
+			RtlInitUnicodeString(&FileListName,L"\\??\\C:\\File.rul");
+			ReadRules(&FileListName,&FileListHdr);
+
+			RtlInitUnicodeString(&RegListName,L"\\??\\C:\\Registry.rul");
+			ReadRules(&RegListName,&RegListHdr);
+
 			//Got event object from user mode
 			if (InputLength!=sizeof(HANDLE)*4 || pIoBuff==NULL)
 			{
@@ -1481,7 +1484,7 @@ BOOLEAN IsTrustedProcess(Event* pEvent)
 BOOLEAN IsInWhiteList(Event* pEvent)
 {
 	//TODO.. 白名单判断，现在先用于行为dbgprint
-	//DbgPrint("%d\t%d\t%d\t%s\n",pEvent->Type,pEvent->Behavior,pEvent->Pid,pEvent->Target);
+
 	PLIST_ENTRY pListPtrNow;
 
 	BOOLEAN JudgeRst = TRUE;
@@ -1494,16 +1497,19 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 
 	HashsList HashsListTemp;
 
+
+
 	HashsListTemp.pHashsF = GetHashsF(&HashsListTemp.HashslenF,pEvent->Target);
 
 	HashsListTemp.pHashsB = GetHashsB(&HashsListTemp.HashslenB,pEvent->Target);
-
 
 
 	switch (pEvent->Type)
 	{
 	case EVENT_TPYE_FILE:
 		{
+			//DbgPrint("EVENT_TYPE_FILE");
+			DbgPrint("FILE LIST:\t%d\t%d\t%d\t%s\n",pEvent->Type,pEvent->Behavior,pEvent->Pid,pEvent->Target);
 			JudgeRst = TRUE;
 			pListPtrNow = FileListHdr.Flink;
 			while(pListPtrNow!=&FileListHdr||IsRstOut)
@@ -1560,6 +1566,8 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 		break;
 	case EVENT_TPYE_REG:
 		{
+			//DbgPrint("EVENT_TPYE_REG");
+			DbgPrint("REG LIST:\t%d\t%d\t%d\t%s\n",pEvent->Type,pEvent->Behavior,pEvent->Pid,pEvent->Target);
 			JudgeRst = TRUE;
 			pListPtrNow = RegListHdr.Flink;
 			while(pListPtrNow!=&RegListHdr||IsRstOut)
@@ -1621,8 +1629,6 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 	ExFreePool(HashsListTemp.pHashsF);
 
 	return JudgeRst;
-
-	return FALSE;
 }
 
 //用户层判断结果反馈
@@ -1961,7 +1967,7 @@ PULONG GetHashsF(PULONG pHashsLen,PCHAR pStr)
 
 	RtlStringCbLengthA(pStr,MAX_PATH+1,(size_t*)&len);
 
-	pHashs = (PULONG)ExAllocatePool(NonPagedPool,len*4);
+	pHashs = (PULONG)ExAllocatePool(NonPagedPool,len*sizeof(ULONG));
 
 	RtlZeroMemory(pHashs,len*4);
 
@@ -1997,20 +2003,20 @@ PULONG GetHashsB(PULONG pHashsLen,PCHAR pStr)
 
 	RtlStringCbLengthA(pStr,MAX_PATH+1,(size_t*)&len);
 
-	pHashs = (PULONG)ExAllocatePool(NonPagedPool,len*4);
+	pHashs = (PULONG)ExAllocatePool(NonPagedPool,len*sizeof(ULONG));
 
 	RtlZeroMemory(pHashs,len*4);
 
-	for (index = len;index>=0;index--)
+	for (index = 0;index<len;index++)
 	{
-		Hash+=(ULONG)pStr[index];
+		Hash+=(ULONG)pStr[len-index-1];
 		_asm
 		{
 			mov eax,Hash
 				ror eax,25
 				mov Hash,eax
 		}
-		pHashs[len-index] = Hash;
+		pHashs[index] = Hash;
 	}
 
 	*pHashsLen = len;
