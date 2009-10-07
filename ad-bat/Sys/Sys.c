@@ -32,10 +32,16 @@ ULONG	hGlobalSelfProcHandle = NULL;
 ULONG	dwGlobalSelfPid		  = NULL;
 
 
+//文件、注册表规则库头指针
+LIST_ENTRY	FileListHdr;
+LIST_ENTRY	RegListHdr;
+NPAGED_LOOKASIDE_LIST	nPagedList;
+
 NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 
 					 __in PUNICODE_STRING pRegistryPath)
 {
+	UNICODE_STRING	FileListName,RegListName;
 	NTSTATUS status;
 	PDEVICE_OBJECT device;
 	//int i = 0;
@@ -67,6 +73,16 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 
 	//设备生成之后，打开初始化完成标记
 	//device->Flags &= ~DO_DEVICE_INITIALIZING;
+
+
+	RtlInitUnicodeString(&FileListName,L"\\??\\C:\\File.rul");
+	ReadRules(&FileListName,&FileListHdr);
+
+	RtlInitUnicodeString(&RegListName,L"\\??\\C:\\Registry.rul");
+	ReadRules(&RegListName,&RegListHdr);
+
+
+	//Display(&FileListHdr);
 
 	//初始化SSDT Hook 操作
 	status = InitSsdtHook();
@@ -110,6 +126,9 @@ VOID OnUnload(__in PDRIVER_OBJECT DriverObject)
 	{
 		SsdtHook(&HookFunc[i],FALSE);
 	}
+
+	Display(&FileListHdr);
+	Display(&RegListHdr);
 
 	// 删除所有驱动设备句柄
 	while(pdoNextDeviceObj)
@@ -267,7 +286,7 @@ NTSTATUS NewLoadDriver(__in PUNICODE_STRING DriverServiceName)
 	String2Target(pEvent,DriverServiceName);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -321,7 +340,7 @@ NTSTATUS NewCreateKey(__out PHANDLE KeyHandle,
 	//Handle2Target(pGlobalEvent,KeyHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -375,7 +394,7 @@ NTSTATUS NewSetValueKey(__in HANDLE KeyHandle,
 	String2Target(pEvent,ValueName);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -423,7 +442,7 @@ NTSTATUS NewDeleteKey(__in HANDLE KeyHandle)
 	Handle2Target(pEvent,KeyHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -466,7 +485,7 @@ NTSTATUS NewDeleteValueKey(__in HANDLE KeyHandle,
 	String2Target(pEvent,ValueName);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -525,7 +544,7 @@ NTSTATUS NewCreateFile(__out PHANDLE FileHandle,
 	//Handle2Target(pGlobalEvent,FileHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -586,7 +605,7 @@ NTSTATUS NewWriteFile(__in HANDLE FileHandle,
 	Handle2Target(pEvent,FileHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -640,7 +659,7 @@ NTSTATUS NewSetInformationFile(__in HANDLE FileHandle,
 	Handle2Target(pEvent,FileHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -692,7 +711,7 @@ NTSTATUS NewOpenProcess(__out PHANDLE ProcessHandle,
 	//不填充行为记录结构体，只判断是否对Ad-BAT自身有危害
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -747,7 +766,7 @@ NTSTATUS NewCreateProcess(__out PHANDLE ProcessHandle,
 	Handle2Target(pEvent,SectionHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -804,7 +823,7 @@ NTSTATUS NewCreateProcessEx(__out PHANDLE ProcessHandle,
 	Handle2Target(pEvent,SectionHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -855,7 +874,7 @@ NTSTATUS NewTerminateProcess(__in_opt HANDLE ProcessHandle,
 	Handle2Target(pEvent,ProcessHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -906,7 +925,7 @@ NTSTATUS NewCreateThread(__out PHANDLE ThreadHandle,
 
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -963,7 +982,7 @@ NTSTATUS NewTerminateThread(__in HANDLE ThreadHandle OPTIONAL,
 	Handle2Target(pEvent,ThreadHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -1011,7 +1030,7 @@ NTSTATUS NewQueueApcThread(__in HANDLE ThreadHandle,
 	Handle2Target(pEvent,ThreadHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -1061,7 +1080,7 @@ NTSTATUS NewWriteVirtualMemory(__in HANDLE ProcessHandle,
 	Handle2Target(pEvent,ProcessHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -1116,7 +1135,7 @@ NTSTATUS NewSetSystemInformation(__in SYSTEM_INFORMATION_CLASS SystemInformation
 	String2Target(pEvent,SystemInformation);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -1167,7 +1186,7 @@ NTSTATUS NewDuplicateObject(__in HANDLE SourceProcessHandle,
 	Handle2Target(pEvent,TargetProcessHandle);
 
 	//是否自身行为？
-	if (IsSelfBehavior(pEvent))
+	if (IsTrustedProcess(pEvent))
 	{
 		goto _label;
 	}
@@ -1430,6 +1449,8 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 
 			KeInitializeMutex(&IoJudgeMutex,0);
 
+
+
 			//开始SSDT Hook
 			for (i=0;i<HOOKNUMS;i++)
 			{
@@ -1449,8 +1470,8 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 //////////////////////////////////////////////////////////////////////////
 //内核判断逻辑函数
 //////////////////////////////////////////////////////////////////////////
-//是否为自身行为
-BOOLEAN IsSelfBehavior(Event* pEvent)
+//是否为可信行为(尚未进行扩展)
+BOOLEAN IsTrustedProcess(Event* pEvent)
 {
 	pEvent->Pid = PsGetCurrentProcessId();
 	
@@ -1460,8 +1481,146 @@ BOOLEAN IsSelfBehavior(Event* pEvent)
 BOOLEAN IsInWhiteList(Event* pEvent)
 {
 	//TODO.. 白名单判断，现在先用于行为dbgprint
+	//DbgPrint("%d\t%d\t%d\t%s\n",pEvent->Type,pEvent->Behavior,pEvent->Pid,pEvent->Target);
+	PLIST_ENTRY pListPtrNow;
 
-	DbgPrint("%d\t%d\t%d\t%s\n",pEvent->Type,pEvent->Behavior,pEvent->Pid,pEvent->Target);
+	BOOLEAN JudgeRst = TRUE;
+
+	BOOLEAN IsRstOut = FALSE;
+
+	ULONG index = 0;
+
+	PListItem pListItemTemp = NULL;
+
+	HashsList HashsListTemp;
+
+	HashsListTemp.pHashsF = GetHashsF(&HashsListTemp.HashslenF,pEvent->Target);
+
+	HashsListTemp.pHashsB = GetHashsB(&HashsListTemp.HashslenB,pEvent->Target);
+
+
+
+	switch (pEvent->Type)
+	{
+	case EVENT_TPYE_FILE:
+		{
+			JudgeRst = TRUE;
+			pListPtrNow = FileListHdr.Flink;
+			while(pListPtrNow!=&FileListHdr||IsRstOut)
+			{
+				pListItemTemp = (PListItem)CONTAINING_RECORD(pListPtrNow,ListItem,ListEntry);
+				switch(pListItemTemp->Type)
+				{
+				case '+':
+					{
+						if (HashsListTemp.pHashsF[pListItemTemp->Length-1]==pListItemTemp->Hash)
+						{
+							IsRstOut = TRUE;
+							JudgeRst = TRUE;
+							pEvent->RuleIndex = index;
+						}
+					}
+					break;
+				case '-':
+					{
+						if (HashsListTemp.pHashsF[pListItemTemp->Length-1]==pListItemTemp->Hash)
+						{
+							IsRstOut = TRUE;
+							JudgeRst = FALSE;
+							pEvent->RuleIndex = index;
+						}
+
+					}
+					break;
+				case '>':
+					{
+						if (HashsListTemp.pHashsB[pListItemTemp->Length-1]==pListItemTemp->Hash)
+						{
+							IsRstOut = TRUE;
+							JudgeRst = TRUE;
+							pEvent->RuleIndex = index;
+						}
+					}
+					break;
+				case '<':
+					{
+						if (HashsListTemp.pHashsB[pListItemTemp->Length-1]==pListItemTemp->Hash)
+						{
+							IsRstOut = TRUE;
+							JudgeRst = FALSE;
+							pEvent->RuleIndex = index;
+						}
+					}
+					break;
+				}
+				pListPtrNow = pListPtrNow->Flink;
+				index++;
+			}
+		}
+		break;
+	case EVENT_TPYE_REG:
+		{
+			JudgeRst = TRUE;
+			pListPtrNow = RegListHdr.Flink;
+			while(pListPtrNow!=&RegListHdr||IsRstOut)
+			{
+				pListItemTemp = (PListItem)CONTAINING_RECORD(pListPtrNow,ListItem,ListEntry);
+				switch(pListItemTemp->Type)
+				{
+				case '+':
+					{
+						if (HashsListTemp.pHashsF[pListItemTemp->Length-1]==pListItemTemp->Hash)
+						{
+							IsRstOut = TRUE;
+							JudgeRst = TRUE;
+							pEvent->RuleIndex = index;
+						}
+					}
+					break;
+				case '-':
+					{
+						if (HashsListTemp.pHashsF[pListItemTemp->Length-1]==pListItemTemp->Hash)
+						{
+							IsRstOut = TRUE;
+							JudgeRst = FALSE;
+							pEvent->RuleIndex = index;
+						}
+
+					}
+					break;
+				case '>':
+					{
+						if (HashsListTemp.pHashsB[pListItemTemp->Length-1]==pListItemTemp->Hash)
+						{
+							IsRstOut = TRUE;
+							JudgeRst = TRUE;
+							pEvent->RuleIndex = index;
+						}
+					}
+					break;
+				case '<':
+					{
+						if (HashsListTemp.pHashsB[pListItemTemp->Length-1]==pListItemTemp->Hash)
+						{
+							IsRstOut = TRUE;
+							JudgeRst = FALSE;
+							pEvent->RuleIndex = index;
+						}
+					}
+					break;
+				}
+				pListPtrNow = pListPtrNow->Flink;
+				index++;
+			}
+		}
+		break;
+	}
+
+
+	ExFreePool(HashsListTemp.pHashsB);
+	ExFreePool(HashsListTemp.pHashsF);
+
+	return JudgeRst;
 
 	return FALSE;
 }
@@ -1611,3 +1770,250 @@ NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle)
 }
 
 
+//////////////////////////////////////////////////////////////////////////
+//规则库读取用函数
+//////////////////////////////////////////////////////////////////////////
+//从指定文件读取规则库
+NTSTATUS ReadRules(PUNICODE_STRING	pFileName,PLIST_ENTRY pListHdr)
+{
+	NTSTATUS	status;
+	HANDLE	hFile;
+	IO_STATUS_BLOCK	iostatus;
+	OBJECT_ATTRIBUTES	ObjAttributes;
+	FILE_STANDARD_INFORMATION	fsi;
+	PCHAR	pBuffer;
+
+	DbgPrint("%S",pFileName->Buffer);
+
+	//初始化链表
+	InitializeListHead(pListHdr);
+	//初始化Lookaside
+	ExInitializeNPagedLookasideList(&nPagedList,
+		NULL,
+		NULL,
+		NULL,
+		sizeof(ListItem),
+		'0101',
+		NULL);
+
+
+	//初始化ObjectAttributes
+	InitializeObjectAttributes(&ObjAttributes,
+		pFileName,
+		OBJ_CASE_INSENSITIVE,
+		NULL,
+		NULL);
+
+	//打开文件
+	status = ZwCreateFile(&hFile,
+		GENERIC_READ,
+		&ObjAttributes,
+		&iostatus,
+		NULL,
+		FILE_ATTRIBUTE_NORMAL,
+		FILE_SHARE_READ,
+		FILE_OPEN,
+		FILE_SYNCHRONOUS_IO_NONALERT,
+		NULL,
+		NULL);
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("ZwCreateFile Error!");
+		return status;
+	}
+
+	//读取文件长度
+	status = ZwQueryInformationFile(hFile,
+		&iostatus,
+		&fsi,
+		sizeof(FILE_STANDARD_INFORMATION),
+		FileStandardInformation);
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("ZwQueryInformationFile Error!");
+		return status;
+	}
+
+	//为文件内容分配缓冲区
+	pBuffer = (PCHAR)ExAllocatePool(NonPagedPool,(LONG)fsi.EndOfFile.QuadPart);
+	if (pBuffer==NULL)
+	{
+		DbgPrint("ExAllocatePool Error!");
+		return status;
+	}
+
+	//读取文件
+	status = ZwReadFile(hFile,
+		NULL,
+		NULL,
+		NULL,
+		&iostatus,
+		pBuffer,
+		(LONG)fsi.EndOfFile.QuadPart,
+		NULL,
+		NULL);
+	if (pBuffer==NULL)
+	{
+		DbgPrint("ZwReadFile Error!");
+		return status;
+	}
+
+	//关闭文件句柄
+	ZwClose(hFile);
+
+	status = ParseRules(pBuffer,pListHdr);
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("ParseRules Error!");
+		return status;
+	}
+
+	ExFreePool(pBuffer);
+	return status;
+}
+
+
+//////////////////////////////////////////////////////////////////////////
+//解析规则库
+//////////////////////////////////////////////////////////////////////////
+NTSTATUS	ParseRules(PCHAR pBuffer,PLIST_ENTRY pListHdr)
+{
+	ULONG	Hash = 0;
+	PListItem pListItem;
+
+	while (*pBuffer!='\0')
+	{
+		switch (*pBuffer)
+		{
+		case '+':
+		case '-':
+		case '<':
+		case '>':
+			{
+				pListItem = (PListItem)ExAllocateFromNPagedLookasideList(&nPagedList);
+				pListItem->Type = *pBuffer++;
+				while (*pBuffer==' ' || *pBuffer=='\t')	pBuffer++;
+				pListItem->Length = 0;
+				while (*pBuffer!='\r')
+				{
+					pListItem->Length++;
+					Hash += *pBuffer++;
+					_asm{
+						mov eax,Hash
+							ror eax,25
+							mov Hash,eax
+					}
+				}
+
+				pListItem->Hash = Hash;
+				InsertTailList(pListHdr,&pListItem->ListEntry);
+			}
+			break;
+		case '\r':
+			{
+				pBuffer += 2;
+			}
+			break;
+		default:
+			{
+				while (*pBuffer++!='\n');
+			}
+			break;
+		}
+	}
+
+	return STATUS_SUCCESS;
+
+}
+
+//////////////////////////////////////////////////////////////////////////
+//显示结果
+//////////////////////////////////////////////////////////////////////////
+VOID Display(PLIST_ENTRY pListHdr)
+{
+	PListItem pListItem;
+	while (!IsListEmpty(pListHdr))
+	{
+		pListItem = (PListItem)RemoveHeadList(pListHdr);
+
+		DbgPrint("%c\t%d\t%x\n",pListItem->Type,pListItem->Length,pListItem->Hash);
+
+		ExFreeToNPagedLookasideList(&nPagedList,pListItem);
+	}
+
+
+	ExDeleteNPagedLookasideList(&nPagedList);
+}
+
+//////////////////////////////////////////////////////////////////////////
+//正向、逆向计算Hash值
+//////////////////////////////////////////////////////////////////////////
+PULONG GetHashsF(PULONG pHashsLen,PCHAR pStr)
+{
+	PULONG pHashs = NULL;
+
+	ULONG Hash = 0;
+
+	ULONG len = 0;
+
+	ULONG index =0;
+
+
+	RtlStringCbLengthA(pStr,MAX_PATH+1,(size_t*)&len);
+
+	pHashs = (PULONG)ExAllocatePool(NonPagedPool,len*4);
+
+	RtlZeroMemory(pHashs,len*4);
+
+	for (index = 0;index<len;index++)
+	{
+		Hash+=(ULONG)pStr[index];
+		_asm
+		{
+			mov eax,Hash
+				ror eax,25
+				mov Hash,eax
+		}
+		pHashs[index] = Hash;
+	}
+
+	*pHashsLen = len;
+
+	return pHashs;
+}
+
+
+PULONG GetHashsB(PULONG pHashsLen,PCHAR pStr)
+{
+	PULONG pHashs = NULL;
+
+	ULONG Hash = 0;
+
+	LONG len = 0;
+
+	LONG index =0;
+
+
+
+	RtlStringCbLengthA(pStr,MAX_PATH+1,(size_t*)&len);
+
+	pHashs = (PULONG)ExAllocatePool(NonPagedPool,len*4);
+
+	RtlZeroMemory(pHashs,len*4);
+
+	for (index = len;index>=0;index--)
+	{
+		Hash+=(ULONG)pStr[index];
+		_asm
+		{
+			mov eax,Hash
+				ror eax,25
+				mov Hash,eax
+		}
+		pHashs[len-index] = Hash;
+	}
+
+	*pHashsLen = len;
+
+	return pHashs;
+}

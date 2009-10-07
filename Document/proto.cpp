@@ -115,3 +115,13 @@ case INFO_IN:
 	}
 	break;
 }
+
+
+//白名单格式
+
+struct ListItem{
+	LIST_ENTRY	ListEntry;	//链表
+	ULONG		Hash;		//字符串Hash
+	ULONG		Length;		//字符串长度
+	char		Type;		//比对方式
+}ListItem;

@@ -70,8 +70,27 @@ typedef struct Event{
 	UINT	Type;
 	UINT	Behavior;
 	ULONG	Pid;
+	ULONG	RuleIndex;
 	CHAR	Target[MAX_PATH+1];
 }Event;
+
+//规则库格式
+typedef struct ListItem{
+	LIST_ENTRY	ListEntry;	//链表
+	ULONG		Hash;		//字符串Hash
+	ULONG		Length;		//字符串长度
+	char		Type;		//比对方式
+}ListItem,*PListItem;
+
+//哈希表
+typedef struct HashsList
+{
+	PULONG	pHashsF;
+	PULONG	pHashsB;
+	ULONG	HashslenF;
+	ULONG	HashslenB;
+}HashsList;
+
 
 //导出全局变量 SSDT 表
 #pragma pack(1)
@@ -119,8 +138,8 @@ NTSTATUS GetSsdtApi(PCHAR szApiName,PUNICODE_STRING szDll);
 
 
 //内核判断逻辑函数
-//是否为自身行为
-BOOLEAN IsSelfBehavior(Event* pEvent);
+//是否为可信行为
+BOOLEAN IsTrustedProcess(Event* pEvent);
 //是否在白名单中
 BOOLEAN IsInWhiteList(Event* pEvent);
 //用户层判断结果反馈
@@ -132,6 +151,16 @@ NTSTATUS String2Target(Event* pEvent,PUNICODE_STRING pUnicodeString);
 //从句柄获得
 NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle);
 
+//从指定文件读取规则库
+NTSTATUS	ReadRules(PUNICODE_STRING	pFileName,PLIST_ENTRY	pListEntry);
+//解析规则库
+NTSTATUS	ParseRules(PCHAR pBuffer,PLIST_ENTRY	pListHdr);
+//显示结果
+VOID Display(PLIST_ENTRY pListHdr);
+
+//正向、逆向计算Hash
+PULONG GetHashsF(PULONG pHashsLen,PCHAR pStr);
+PULONG GetHashsB(PULONG pHashsLen,PCHAR pStr);
 
 
 #if (NTDDI_VERSION >= NTDDI_WIN2K)

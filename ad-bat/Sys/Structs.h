@@ -6,6 +6,7 @@
 #include <ntdef.h>
 #include <ntimage.h>
 #include <stdio.h>
+#include <ntstrsafe.h>
 
 typedef unsigned char BYTE ;
 typedef unsigned int UINT;
