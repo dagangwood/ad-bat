@@ -73,11 +73,15 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 	//设备生成之后，打开初始化完成标记
 	//device->Flags &= ~DO_DEVICE_INITIALIZING;
 
+	//初始化Lookaside
+	ExInitializeNPagedLookasideList(&nPagedList,
+		NULL,
+		NULL,
+		NULL,
+		sizeof(ListItem),
+		'0101',
+		NULL);
 
-
-
-
-	//Display(&FileListHdr);
 
 	//初始化SSDT Hook 操作
 	status = InitSsdtHook();
@@ -1423,13 +1427,14 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 			hGlobalSelfProcHandle = PsGetCurrentProcess();
 			dwGlobalSelfPid		= PsGetCurrentProcessId();
 
-
 			//读取规则库文件
-			RtlInitUnicodeString(&FileListName,L"\\??\\C:\\File.rul");
+			RtlInitUnicodeString(&FileListName,L"\\??\\C:\\Registry.rul");
 			ReadRules(&FileListName,&FileListHdr);
 
-			RtlInitUnicodeString(&RegListName,L"\\??\\C:\\Registry.rul");
+			RtlInitUnicodeString(&RegListName,L"\\??\\C:\\File.rul");
 			ReadRules(&RegListName,&RegListHdr);
+
+			DbgPrint("Read Rules End\n");
 
 			//Got event object from user mode
 			if (InputLength!=sizeof(HANDLE)*4 || pIoBuff==NULL)
@@ -1452,13 +1457,12 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 
 			KeInitializeMutex(&IoJudgeMutex,0);
 
-
-
 			//开始SSDT Hook
 			for (i=0;i<HOOKNUMS;i++)
 			{
 				SsdtHook(&HookFunc[i],TRUE);
 			}
+
 		}
 		break;
 	}
@@ -1796,20 +1800,13 @@ NTSTATUS ReadRules(PUNICODE_STRING	pFileName,PLIST_ENTRY pListHdr)
 	IO_STATUS_BLOCK	iostatus;
 	OBJECT_ATTRIBUTES	ObjAttributes;
 	FILE_STANDARD_INFORMATION	fsi;
+	LARGE_INTEGER	offset = {0};
 	PCHAR	pBuffer;
 
-	DbgPrint("%S",pFileName->Buffer);
+
 
 	//初始化链表
 	InitializeListHead(pListHdr);
-	//初始化Lookaside
-	ExInitializeNPagedLookasideList(&nPagedList,
-		NULL,
-		NULL,
-		NULL,
-		sizeof(ListItem),
-		'0101',
-		NULL);
 
 
 	//初始化ObjectAttributes
@@ -1838,7 +1835,7 @@ NTSTATUS ReadRules(PUNICODE_STRING	pFileName,PLIST_ENTRY pListHdr)
 	}
 
 	//读取文件长度
-	status = ZwQueryInformationFile(hFile,
+	status =ZwQueryInformationFile(hFile,
 		&iostatus,
 		&fsi,
 		sizeof(FILE_STANDARD_INFORMATION),
@@ -1850,12 +1847,14 @@ NTSTATUS ReadRules(PUNICODE_STRING	pFileName,PLIST_ENTRY pListHdr)
 	}
 
 	//为文件内容分配缓冲区
-	pBuffer = (PCHAR)ExAllocatePool(NonPagedPool,(LONG)fsi.EndOfFile.QuadPart);
+	pBuffer = (PCHAR)ExAllocatePool(NonPagedPool,(LONG)(fsi.EndOfFile.QuadPart+4-fsi.EndOfFile.QuadPart%4));
 	if (pBuffer==NULL)
 	{
 		DbgPrint("ExAllocatePool Error!");
 		return status;
 	}
+
+	RtlZeroMemory(pBuffer,(LONG)(fsi.EndOfFile.QuadPart+4-fsi.EndOfFile.QuadPart%4));
 
 	//读取文件
 	status = ZwReadFile(hFile,
@@ -1864,15 +1863,16 @@ NTSTATUS ReadRules(PUNICODE_STRING	pFileName,PLIST_ENTRY pListHdr)
 		NULL,
 		&iostatus,
 		pBuffer,
-		(LONG)fsi.EndOfFile.QuadPart,
-		NULL,
+		(LONG)(fsi.EndOfFile.QuadPart+4-fsi.EndOfFile.QuadPart%4),
+		&offset,
 		NULL);
-	if (pBuffer==NULL)
+	if (!NT_SUCCESS(status) && status!=STATUS_END_OF_FILE)
 	{
 		DbgPrint("ZwReadFile Error!");
 		return status;
 	}
 
+	DbgPrint("%S",pFileName->Buffer);
 	//关闭文件句柄
 	ZwClose(hFile);
 
@@ -2025,9 +2025,9 @@ PULONG GetHashsB(PULONG pHashsLen,PCHAR pStr)
 	for (index = 0;index<len;index++)
 	{
 		//大小写不敏感
-		HashTemp = pStr[index];
+		HashTemp = pStr[len-index-1];
 		HashTemp = HashTemp|0x20;
-		Hash+=(ULONG)HashTemp;
+		Hash += (ULONG)HashTemp;
 		_asm
 		{
 			mov eax,Hash
