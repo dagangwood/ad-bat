@@ -1512,53 +1512,57 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 			DbgPrint("FILE LIST:\t%d\t%d\t%d\t%s\n",pEvent->Type,pEvent->Behavior,pEvent->Pid,pEvent->Target);
 			JudgeRst = TRUE;
 			pListPtrNow = FileListHdr.Flink;
-			while(pListPtrNow!=&FileListHdr||IsRstOut)
+			while(pListPtrNow!=&FileListHdr&&!IsRstOut)
 			{
 				pListItemTemp = (PListItem)CONTAINING_RECORD(pListPtrNow,ListItem,ListEntry);
-				switch(pListItemTemp->Type)
+				if (pListItemTemp->Length<=HashsListTemp.HashslenF)
 				{
-				case '+':
+					switch(pListItemTemp->Type)
 					{
-						if (HashsListTemp.pHashsF[pListItemTemp->Length-1]==pListItemTemp->Hash)
+					case '+':
 						{
-							IsRstOut = TRUE;
-							JudgeRst = TRUE;
-							pEvent->RuleIndex = index;
+							if (HashsListTemp.pHashsF[pListItemTemp->Length-1]==pListItemTemp->Hash)
+							{
+								IsRstOut = TRUE;
+								JudgeRst = TRUE;
+								pEvent->RuleIndex = index;
+							}
 						}
-					}
-					break;
-				case '-':
-					{
-						if (HashsListTemp.pHashsF[pListItemTemp->Length-1]==pListItemTemp->Hash)
+						break;
+					case '-':
 						{
-							IsRstOut = TRUE;
-							JudgeRst = FALSE;
-							pEvent->RuleIndex = index;
-						}
+							if (HashsListTemp.pHashsF[pListItemTemp->Length-1]==pListItemTemp->Hash)
+							{
+								IsRstOut = TRUE;
+								JudgeRst = FALSE;
+								pEvent->RuleIndex = index;
+							}
 
-					}
-					break;
-				case '>':
-					{
-						if (HashsListTemp.pHashsB[pListItemTemp->Length-1]==pListItemTemp->Hash)
-						{
-							IsRstOut = TRUE;
-							JudgeRst = TRUE;
-							pEvent->RuleIndex = index;
 						}
-					}
-					break;
-				case '<':
-					{
-						if (HashsListTemp.pHashsB[pListItemTemp->Length-1]==pListItemTemp->Hash)
+						break;
+					case '>':
 						{
-							IsRstOut = TRUE;
-							JudgeRst = FALSE;
-							pEvent->RuleIndex = index;
+							if (HashsListTemp.pHashsB[pListItemTemp->Length-1]==pListItemTemp->Hash)
+							{
+								IsRstOut = TRUE;
+								JudgeRst = TRUE;
+								pEvent->RuleIndex = index;
+							}
 						}
+						break;
+					case '<':
+						{
+							if (HashsListTemp.pHashsB[pListItemTemp->Length-1]==pListItemTemp->Hash)
+							{
+								IsRstOut = TRUE;
+								JudgeRst = FALSE;
+								pEvent->RuleIndex = index;
+							}
+						}
+						break;
 					}
-					break;
 				}
+				
 				pListPtrNow = pListPtrNow->Flink;
 				index++;
 			}
@@ -1570,53 +1574,58 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 			DbgPrint("REG LIST:\t%d\t%d\t%d\t%s\n",pEvent->Type,pEvent->Behavior,pEvent->Pid,pEvent->Target);
 			JudgeRst = TRUE;
 			pListPtrNow = RegListHdr.Flink;
-			while(pListPtrNow!=&RegListHdr||IsRstOut)
+			while(pListPtrNow!=&RegListHdr&&!IsRstOut)
 			{
 				pListItemTemp = (PListItem)CONTAINING_RECORD(pListPtrNow,ListItem,ListEntry);
-				switch(pListItemTemp->Type)
+				if (pListItemTemp->Length<=HashsListTemp.HashslenF)
 				{
-				case '+':
+					switch(pListItemTemp->Type)
 					{
-						if (HashsListTemp.pHashsF[pListItemTemp->Length-1]==pListItemTemp->Hash)
+					case '+':
 						{
-							IsRstOut = TRUE;
-							JudgeRst = TRUE;
-							pEvent->RuleIndex = index;
+							if (HashsListTemp.pHashsF[pListItemTemp->Length-1]==pListItemTemp->Hash)
+							{
+								IsRstOut = TRUE;
+								JudgeRst = TRUE;
+								pEvent->RuleIndex = index;
+							}
 						}
-					}
-					break;
-				case '-':
-					{
-						if (HashsListTemp.pHashsF[pListItemTemp->Length-1]==pListItemTemp->Hash)
+						break;
+					case '-':
 						{
-							IsRstOut = TRUE;
-							JudgeRst = FALSE;
-							pEvent->RuleIndex = index;
-						}
+							if (HashsListTemp.pHashsF[pListItemTemp->Length-1]==pListItemTemp->Hash)
+							{
+								IsRstOut = TRUE;
+								JudgeRst = FALSE;
+								pEvent->RuleIndex = index;
+							}
 
-					}
-					break;
-				case '>':
-					{
-						if (HashsListTemp.pHashsB[pListItemTemp->Length-1]==pListItemTemp->Hash)
-						{
-							IsRstOut = TRUE;
-							JudgeRst = TRUE;
-							pEvent->RuleIndex = index;
 						}
-					}
-					break;
-				case '<':
-					{
-						if (HashsListTemp.pHashsB[pListItemTemp->Length-1]==pListItemTemp->Hash)
+						break;
+					case '>':
 						{
-							IsRstOut = TRUE;
-							JudgeRst = FALSE;
-							pEvent->RuleIndex = index;
+							if (HashsListTemp.pHashsB[pListItemTemp->Length-1]==pListItemTemp->Hash)
+							{
+								IsRstOut = TRUE;
+								JudgeRst = TRUE;
+								pEvent->RuleIndex = index;
+							}
 						}
+						break;
+					case '<':
+						{
+							if (HashsListTemp.pHashsB[pListItemTemp->Length-1]==pListItemTemp->Hash)
+							{
+								IsRstOut = TRUE;
+								JudgeRst = FALSE;
+								pEvent->RuleIndex = index;
+							}
+						}
+						break;
 					}
-					break;
+
 				}
+				
 				pListPtrNow = pListPtrNow->Flink;
 				index++;
 			}
@@ -1960,6 +1969,8 @@ PULONG GetHashsF(PULONG pHashsLen,PCHAR pStr)
 
 	ULONG Hash = 0;
 
+	CHAR HashTemp = 0x00;
+
 	ULONG len = 0;
 
 	ULONG index =0;
@@ -1973,10 +1984,14 @@ PULONG GetHashsF(PULONG pHashsLen,PCHAR pStr)
 
 	for (index = 0;index<len;index++)
 	{
-		Hash+=(ULONG)pStr[index];
+		//大小写不敏感
+		HashTemp = pStr[index];
+		HashTemp = HashTemp|0x20;
+		Hash+=(ULONG)HashTemp;
+		//移位运算
 		_asm
 		{
-			mov eax,Hash
+				mov eax,Hash
 				ror eax,25
 				mov Hash,eax
 		}
@@ -1999,7 +2014,7 @@ PULONG GetHashsB(PULONG pHashsLen,PCHAR pStr)
 
 	LONG index =0;
 
-
+	CHAR HashTemp = 0x00;
 
 	RtlStringCbLengthA(pStr,MAX_PATH+1,(size_t*)&len);
 
@@ -2009,7 +2024,10 @@ PULONG GetHashsB(PULONG pHashsLen,PCHAR pStr)
 
 	for (index = 0;index<len;index++)
 	{
-		Hash+=(ULONG)pStr[len-index-1];
+		//大小写不敏感
+		HashTemp = pStr[index];
+		HashTemp = HashTemp|0x20;
+		Hash+=(ULONG)HashTemp;
 		_asm
 		{
 			mov eax,Hash
