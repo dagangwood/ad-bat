@@ -4,25 +4,25 @@ Copyright (C) Microsoft Corporation. All rights reserved.
 -----------------------------------------------------------------------------
 Contents of defect log: PREfast_defects_chk_wlh_x86.xml
 -----------------------------------------------------------------------------
-d:\project\ad-bat\ad-bat\sys\sys.c (1707): warning 28159: Consider using 'ExAllocatePoolWithTag' instead of 'ExAllocatePool'. Reason:  No tag interferes with debugging.
-	FUNCTION: Handle2Target (1693)
+f:\driver\ad-bat\ad-bat\sys\sys.c (1716): warning 28159: Consider using 'ExAllocatePoolWithTag' instead of 'ExAllocatePool'. Reason:  No tag interferes with debugging.
+	FUNCTION: Handle2Target (1702)
 
-d:\project\ad-bat\ad-bat\sys\sys.c (1844): warning 28159: Consider using 'ExAllocatePoolWithTag' instead of 'ExAllocatePool'. Reason:  No tag interferes with debugging.
-	FUNCTION: ReadRules (1783)
+f:\driver\ad-bat\ad-bat\sys\sys.c (1853): warning 28159: Consider using 'ExAllocatePoolWithTag' instead of 'ExAllocatePool'. Reason:  No tag interferes with debugging.
+	FUNCTION: ReadRules (1792)
 
-d:\project\ad-bat\ad-bat\sys\sys.c (1970): warning 28159: Consider using 'ExAllocatePoolWithTag' instead of 'ExAllocatePool'. Reason:  No tag interferes with debugging.
-	FUNCTION: GetHashsF (1957)
+f:\driver\ad-bat\ad-bat\sys\sys.c (1981): warning 28159: Consider using 'ExAllocatePoolWithTag' instead of 'ExAllocatePool'. Reason:  No tag interferes with debugging.
+	FUNCTION: GetHashsF (1966)
 
-d:\project\ad-bat\ad-bat\sys\sys.c (2006): warning 28159: Consider using 'ExAllocatePoolWithTag' instead of 'ExAllocatePool'. Reason:  No tag interferes with debugging.
-	FUNCTION: GetHashsB (1992)
+f:\driver\ad-bat\ad-bat\sys\sys.c (2021): warning 28159: Consider using 'ExAllocatePoolWithTag' instead of 'ExAllocatePool'. Reason:  No tag interferes with debugging.
+	FUNCTION: GetHashsB (2007)
 
-d:\project\ad-bat\ad-bat\sys\sys.c (219): warning 28159: Consider using 'IoAllocateMdl' instead of 'MmCreateMdl'. Reason:  Obsolete.
+f:\driver\ad-bat\ad-bat\sys\sys.c (219): warning 28159: Consider using 'IoAllocateMdl' instead of 'MmCreateMdl'. Reason:  Obsolete.
 	FUNCTION: InitSsdtHook (139)
 
-d:\project\ad-bat\ad-bat\sys\sys.c (230): warning 28145: The opaque MDL structure should not be modified by a driver.
+f:\driver\ad-bat\ad-bat\sys\sys.c (230): warning 28145: The opaque MDL structure should not be modified by a driver.
 	FUNCTION: InitSsdtHook (139)
 
-d:\project\ad-bat\ad-bat\sys\sys.c (231): warning 28159: Consider using 'MmMapLockedPagesSpecifyCache' instead of 'MmMapLockedPages'. Reason:  Obsolete except on Windows 98.  Use MmGetSystemAddressForMdlSafe if this is a call to MmGetSystemAddressForMdl..
+f:\driver\ad-bat\ad-bat\sys\sys.c (231): warning 28159: Consider using 'MmMapLockedPagesSpecifyCache' instead of 'MmMapLockedPages'. Reason:  Obsolete except on Windows 98.  Use MmGetSystemAddressForMdlSafe if this is a call to MmGetSystemAddressForMdl..
 	FUNCTION: InitSsdtHook (139)
 
 -----------------------------------------------------------------------------
