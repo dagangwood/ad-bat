@@ -1,4 +1,5 @@
 #include "Sys.h"
+#include <ntdef.h>
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -13,6 +14,9 @@ Hook HookFunc[HOOKNUMS];
 UNICODE_STRING device_name = RTL_CONSTANT_STRING(L"\\Device\\AdBAT");
 UNICODE_STRING symb_link = RTL_CONSTANT_STRING(L"\\DosDevices\\AdBAT");
 
+//ZwQueryInformationProcess函数地址
+ZWQUERYINFORMATIONPROCESS	ZwQueryInformationProcess = NULL;
+ZWQUERYINFORMATIONTHREAD	ZwQueryInformationThread  = NULL;
 
 //a event handle and object got from user mode 
 HANDLE hIoEvent = NULL;
@@ -43,6 +47,7 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 {
 	NTSTATUS status;
 	PDEVICE_OBJECT device;
+	UNICODE_STRING ProcFuncString,ThreadFuncString;
 	//int i = 0;
 
 	//DbgPrint("DriverEntry() Function...\n");
@@ -82,6 +87,22 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 		'0101',
 		NULL);
 
+
+	//初始化ZwQueryInformationProcess地址
+	RtlInitUnicodeString(&ProcFuncString,L"ZwQueryInformationProcess");
+	ZwQueryInformationProcess = MmGetSystemRoutineAddress(&ProcFuncString);
+	if (ZwQueryInformationProcess == NULL)
+	{
+		return status;
+	}
+
+	//初始化ZwQueryInformationThread地址
+	RtlInitUnicodeString(&ThreadFuncString,L"ZwQueryInformationThread");
+	ZwQueryInformationThread = MmGetSystemRoutineAddress(&ThreadFuncString);
+	if (ZwQueryInformationThread == NULL)
+	{
+		return status;
+	}
 
 	//初始化SSDT Hook 操作
 	status = InitSsdtHook();
@@ -274,39 +295,26 @@ NTSTATUS NewLoadDriver(__in PUNICODE_STRING DriverServiceName)
 	Event	LocalEvent;
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-	NTLOADDRIVER OldNtFunc;
-	
+	NTLOADDRIVER OldNtFunc = HookFunc[NtLoadDriver].NtFunc;;
 	//DbgPrint("NewLoadDriver() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
-	pEvent->Type		= EVENT_TPYE_INFO;
+	pEvent->Pid = PsGetCurrentProcessId();
+	pEvent->Type		= EVENT_TPYE_OTHER;
 	pEvent->Behavior	= NtLoadDriver;
 	String2Target(pEvent,DriverServiceName);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
-	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))		goto _label;
+
+	//禁止执行
+	return STATUS_IMAGE_ALREADY_LOADED;
 
 _label:
-	OldNtFunc= HookFunc[NtLoadDriver].NtFunc;
-
 	status = OldNtFunc(DriverServiceName);
 
 	return status;
@@ -325,38 +333,29 @@ NTSTATUS NewCreateKey(__out PHANDLE KeyHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTCREATEKEY OldNtFunc = HookFunc[NtCreateKey].NtFunc;
-
 	//DbgPrint("NewCreateKey() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Pid = PsGetCurrentProcessId();
 	pEvent->Type		= EVENT_TPYE_REG;
 	pEvent->Behavior	= NtCreateKey;
 	if (ObjectAttributes!=NULL)
 	{
 		String2Target(pEvent,ObjectAttributes->ObjectName);
 	}
-	//Handle2Target(pGlobalEvent,KeyHandle);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
 	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
+	if (IsInWhiteList(pEvent))		goto _label;
+
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))		goto _label;
+
+	//禁止执行
+	return	STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(KeyHandle,
@@ -382,35 +381,27 @@ NTSTATUS NewSetValueKey(__in HANDLE KeyHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTSETVALUEKEY OldNtFunc = HookFunc[NtSetValueKey].NtFunc;
-
 	//DbgPrint("NewSetValueKey() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Pid = PsGetCurrentProcessId();
 	pEvent->Type		= EVENT_TPYE_REG;
 	pEvent->Behavior	= NtSetValueKey;
 	Handle2Target(pEvent,KeyHandle);
 	String2Target(pEvent,ValueName);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
 	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
+	if (IsInWhiteList(pEvent))		goto _label;
+
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))		goto _label;
+
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(KeyHandle,
@@ -431,34 +422,26 @@ NTSTATUS NewDeleteKey(__in HANDLE KeyHandle)
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTDELETEKEY OldNtFunc = HookFunc[NtDeleteKey].NtFunc;
-
 	//DbgPrint("NewDeleteKey() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Pid = PsGetCurrentProcessId();
 	pEvent->Type		= EVENT_TPYE_REG;
 	pEvent->Behavior	= NtDeleteKey;
 	Handle2Target(pEvent,KeyHandle);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
 	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
+	if (IsInWhiteList(pEvent))		goto _label;
+
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))		goto _label;
+	
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(KeyHandle);
@@ -473,35 +456,27 @@ NTSTATUS NewDeleteValueKey(__in HANDLE KeyHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTDELETEVALUEKEY OldNtFunc = HookFunc[NtDeleteVauleKey].NtFunc;
-
 	//DbgPrint("NewDeleteValueKey() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Pid = PsGetCurrentProcessId();
 	pEvent->Type		= EVENT_TPYE_REG;
 	pEvent->Behavior	= NtDeleteVauleKey;
 	Handle2Target(pEvent,KeyHandle);
 	String2Target(pEvent,ValueName);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
 	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
+	if (IsInWhiteList(pEvent))		goto _label;
+
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))		goto _label;
+	
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(KeyHandle,
@@ -527,11 +502,14 @@ NTSTATUS NewCreateFile(__out PHANDLE FileHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTCREATEFILE OldNtFunc = HookFunc[NtCreateFile].NtFunc;
-
 	//DbgPrint("NewCreateFile() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Pid = PsGetCurrentProcessId();
 	pEvent->Type		= EVENT_TPYE_FILE;
 	pEvent->Behavior	= NtCreateFile;
 	if (ObjectAttributes!=NULL)
@@ -539,29 +517,15 @@ NTSTATUS NewCreateFile(__out PHANDLE FileHandle,
 		String2Target(pEvent,ObjectAttributes->ObjectName);
 	}
 
-	
-	//Handle2Target(pGlobalEvent,FileHandle);
-
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
 	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
-	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (IsInWhiteList(pEvent))		goto _label;
 
+	//用户层判断结果？
+	if (JudgeByUser(pEvent))		goto _label;
+	
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
+	
 _label:
 	status = OldNtFunc(FileHandle,
 					   DesiredAccess,
@@ -594,34 +558,26 @@ NTSTATUS NewWriteFile(__in HANDLE FileHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTWRITEFILE OldNtFunc = HookFunc[NtWriteFile].NtFunc;
-
 	//DbgPrint("NewWriteFile() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Pid = PsGetCurrentProcessId();
 	pEvent->Type		= EVENT_TPYE_FILE;
 	pEvent->Behavior	= NtWriteFile;
 	Handle2Target(pEvent,FileHandle);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
 	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
+	if (IsInWhiteList(pEvent))		goto _label;
+
 	//用户层判断结果？
-	//if (JudgeByUser(pEvent))
-	//{
-	//	goto _label;
-	//}
-	//else
-	//{
-	//	//TODO.. 善后工作
-	//}
+	if (JudgeByUser(pEvent))		goto _label;
+
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(FileHandle,
@@ -648,34 +604,26 @@ NTSTATUS NewSetInformationFile(__in HANDLE FileHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTSETINFORMATIONFILE OldNtFunc = HookFunc[NtSetInformationFile].NtFunc;
-
 	//DbgPrint("NewSetInformationFile() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Pid = PsGetCurrentProcessId();
 	pEvent->Type		= EVENT_TPYE_FILE;
 	pEvent->Behavior	= NtSetInformationFile;
 	Handle2Target(pEvent,FileHandle);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
 	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
+	if (IsInWhiteList(pEvent))		goto _label;
+
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))		goto _label;
+	
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(FileHandle,
@@ -696,41 +644,30 @@ NTSTATUS NewOpenProcess(__out PHANDLE ProcessHandle,
 	Event	LocalEvent;
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
 	NTOPENPROCESS OldNtFunc = HookFunc[NtOpenProcess].NtFunc;
+	//DbgPrint("NewOpenProcess() Function...\n");	
 
-	//DbgPrint("NewOpenProcess() Function...\n");
+	//ClientId为空则放行，后期版本需要继续判断ObjectAttributes字段
+	if (!ClientId)	goto _label;
+	
+	//对自身进行操作？
+	if (ClientId->UniqueProcess == PsGetCurrentProcessId())	goto _label;
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
-	//RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	//pGlobalEvent->Type		= EVENT_TPYE_PROC;
-	//pGlobalEvent->Behavior	= NtOpenProcess;
-	//String2Target(pGlobalEvent,ObjectAttributes->ObjectName);
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Pid		 = PsGetCurrentProcessId();
+	pEvent->Type	 = EVENT_TPYE_PROC;
+	pEvent->Behavior = NtOpenProcess;
+	Handle2Target(pEvent,Pid2ProcessHandle(ClientId->UniqueProcess));
 
-	//不填充行为记录结构体，只判断是否对Ad-BAT自身有危害
-
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
-	//是否对Ad-BAT不利？
-	if (ClientId->UniqueProcess == pEvent->Pid)
-	{
-		goto _label_evil;
-	}
-	////是否在白名单中？
-	//if (IsInWhiteList(pGlobalEvent))
-	//{
-	//	goto _label;
-	//}
-	////用户层判断结果？
-	//if (JudgeByUser(pGlobalEvent))
-	//{
-	//	goto _label;
-	//}
-_label_evil:
-	//TODO.. 善后工作
+	//用户层判断结果？
+	if (JudgeByUser(pEvent))	goto _label;
+	
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(ProcessHandle,
@@ -755,34 +692,23 @@ NTSTATUS NewCreateProcess(__out PHANDLE ProcessHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTCREATEPROCESS OldNtFunc = HookFunc[NtCreateProcess].NtFunc;
-
 	//DbgPrint("NewCreateProcess() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
-	pEvent->Type		= EVENT_TPYE_PROC;
-	pEvent->Behavior	= NtCreateProcess;
+	pEvent->Pid		 = PsGetCurrentProcessId();
+	pEvent->Type	 = EVENT_TPYE_PROC;
+	pEvent->Behavior = NtCreateProcess;
 	Handle2Target(pEvent,SectionHandle);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
-	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))	goto _label;
+	
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(ProcessHandle,
@@ -812,34 +738,23 @@ NTSTATUS NewCreateProcessEx(__out PHANDLE ProcessHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTCREATEPROCESSEX OldNtFunc = HookFunc[NtCreateProcessEx].NtFunc;
-
 	//DbgPrint("NewCreateProcessEx() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
-	pEvent->Type		= EVENT_TPYE_PROC;
-	pEvent->Behavior	= NtCreateProcessEx;
+	pEvent->Pid		 = PsGetCurrentProcessId();
+	pEvent->Type	 = EVENT_TPYE_PROC;
+	pEvent->Behavior = NtCreateProcessEx;
 	Handle2Target(pEvent,SectionHandle);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
-	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))		goto _label;
+
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(ProcessHandle,
@@ -863,34 +778,23 @@ NTSTATUS NewTerminateProcess(__in_opt HANDLE ProcessHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTTERMINATEPROCESS OldNtFunc = HookFunc[NtTerminateProcess].NtFunc;
-
 	//DbgPrint("NewTerminateProcess() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Pid		 = PsGetCurrentProcessId();
 	pEvent->Type		= EVENT_TPYE_PROC;
 	pEvent->Behavior	= NtTerminateProcess;
 	Handle2Target(pEvent,ProcessHandle);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
-	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))		goto _label;
+
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(ProcessHandle,
@@ -912,53 +816,37 @@ NTSTATUS NewCreateThread(__out PHANDLE ThreadHandle,
 	Event	LocalEvent;
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
 	NTCREATETHREAD OldNtFunc = HookFunc[NtCreateThread].NtFunc;
-
 	//DbgPrint("NewCreateThread() Function...\n");
+	
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
+
+	//是否为进程的自身行为？
+	if (ProcessHandle2Pid(ProcessHandle) == PsGetCurrentProcessId())		goto _label;
 
 	//填充行为记录结构体
-	//RtlZeroMemory(pGlobalEvent,sizeof(Event));
-	//pGlobalEvent->Type		= EVENT_TPYE_PROC;
-	//pGlobalEvent->Behavior	= NtCreateThread;
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Pid		 = PsGetCurrentProcessId();
+	pEvent->Type	 = EVENT_TPYE_PROC;
+	pEvent->Behavior = NtCreateThread;
+	Handle2Target(pEvent,ProcessHandle);
 
+	//用户层判断结果？
+	if (JudgeByUser(pEvent))	goto	_label;
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
-	//是否对Ad-BAT不利？
-	if (ClientId->UniqueProcess == pEvent->Pid)
-	{
-		goto _label_evil;
-	}
-	////是否在白名单中？
-	//if (IsInWhiteList(pGlobalEvent))
-	//{
-	//	goto _label;
-	//}
-	////用户层判断结果？
-	//if (JudgeByUser(pGlobalEvent))
-	//{
-	//	goto _label;
-	//}
-	//else
-	//{
-	//	//TODO.. 善后工作
-	//}
-_label_evil:
-	//TODO.. 善后工作
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(ThreadHandle,
-				   	   DesiredAccess,
-					   ObjectAttributes,
-					   ProcessHandle,
-					   ClientId,
-					   ThreadContext,
-					   UserStack,
-					   CreateSuspended);
+		DesiredAccess,
+		ObjectAttributes,
+		ProcessHandle,
+		ClientId,
+		ThreadContext,
+		UserStack,
+		CreateSuspended);
 
 	return status;
 }
@@ -971,34 +859,26 @@ NTSTATUS NewTerminateThread(__in HANDLE ThreadHandle OPTIONAL,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTTERMINATETHREAD OldNtFunc = HookFunc[NtTerminateThread].NtFunc;
-
 	//DbgPrint("NewTerminateThread() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
+
+	//是否为进程自身行为？
+	if (ThreadHandle2Pid(ThreadHandle) == PsGetCurrentProcessId())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
-	pEvent->Type		= EVENT_TPYE_PROC;
-	pEvent->Behavior	= NtTerminateThread;
-	Handle2Target(pEvent,ThreadHandle);
+	pEvent->Pid		 = PsGetCurrentProcessId();
+	pEvent->Type	 = EVENT_TPYE_PROC;
+	pEvent->Behavior = NtTerminateThread;
+	Handle2Target(pEvent,Pid2ProcessHandle(ThreadHandle2Pid(ThreadHandle)));
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
-	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))	goto _label;
+	
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(ThreadHandle,
@@ -1019,34 +899,26 @@ NTSTATUS NewQueueApcThread(__in HANDLE ThreadHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTQUEUEAPCTHREAD OldNtFunc = HookFunc[NtQueueApcThread].NtFunc;
-
 	//DbgPrint("NewQueueApcThread() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
+
+	//是否为进程自身行为？
+	if (ThreadHandle2Pid(ThreadHandle) == PsGetCurrentProcessId())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
-	pEvent->Type		= EVENT_TPYE_PROC;
-	pEvent->Behavior	= NtQueueApcThread;
-	Handle2Target(pEvent,ThreadHandle);
+	pEvent->Pid		 = PsGetCurrentProcessId();
+	pEvent->Type	 = EVENT_TPYE_PROC;
+	pEvent->Behavior = NtQueueApcThread;
+	Handle2Target(pEvent,Pid2ProcessHandle(ThreadHandle2Pid(ThreadHandle)));
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
-	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))		goto _label;
+
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(ThreadHandle,
@@ -1070,33 +942,26 @@ NTSTATUS NewWriteVirtualMemory(__in HANDLE ProcessHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTWRITEVIRTUALMEMORY OldNtFunc = HookFunc[NtWriteVirtualMemory].NtFunc;
-
 	//DbgPrint("NewWriteVirtualMemory() Function...\n");
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
+
+	//是否为进程自身行为？
+	if (ProcessHandle2Pid(ProcessHandle) == PsGetCurrentProcessId())		goto _label;
+
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
-	pEvent->Type		= EVENT_TPYE_PROC;
-	pEvent->Behavior	= NtWriteVirtualMemory;
+	pEvent->Pid		 = PsGetCurrentProcessId();
+	pEvent->Type	 = EVENT_TPYE_PROC;
+	pEvent->Behavior = NtWriteVirtualMemory;
 	Handle2Target(pEvent,ProcessHandle);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
-	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))		goto _label;
+
+	//禁止执行
+	return STATUS_ACCESS_VIOLATION;
 
 _label:
 	status = OldNtFunc(ProcessHandle,
@@ -1116,42 +981,27 @@ NTSTATUS NewSetSystemInformation(__in SYSTEM_INFORMATION_CLASS SystemInformation
 	Event	LocalEvent;
 	Event*	pEvent = &LocalEvent;
 	NTSTATUS status;
-
 	NTSETSYSTEMINFORMATION OldNtFunc = HookFunc[NtSetSystemInformation].NtFunc;
-
-	//是否加载驱动？
-	if (SystemInformationClass !=  SystemLoadAndCallImage)
-	{
-		goto _label;
-	}
-
 	//DbgPrint("NewSetSystemInformation() Function...\n");
+	
+	//是否加载驱动？
+	if (SystemInformationClass !=  SystemLoadAndCallImage)		goto _label;
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
-	pEvent->Type		= EVENT_TPYE_INFO;
-	pEvent->Behavior	= NtSetSystemInformation;
+	pEvent->Pid		 = PsGetCurrentProcessId();
+	pEvent->Type	 = EVENT_TPYE_OTHER;
+	pEvent->Behavior = NtSetSystemInformation;
 	String2Target(pEvent,SystemInformation);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
-	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-	else
-	{
-		//TODO.. 善后工作
-	}
+	if (JudgeByUser(pEvent))		goto _label;
+
+	//禁止执行
+	return STATUS_NOT_IMPLEMENTED;
 
 _label:
 	status = OldNtFunc(SystemInformationClass,
@@ -1173,39 +1023,26 @@ NTSTATUS NewDuplicateObject(__in HANDLE SourceProcessHandle,
 	Event	LocalEvent;
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
-
 	NTDUPLICATEOBJECT OldNtFunc = HookFunc[NtDuplicateObject].NtFunc;
-
 	//DbgPrint("NewDuplicateObject() Function...\n");
+	
+	if (SourceHandle == TargetHandle)	goto _label;
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
 
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
-	pEvent->Type		= EVENT_TPYE_INFO;
-	pEvent->Behavior	= NtDuplicateObject;
+	pEvent->Pid		 = PsGetCurrentProcessId();
+	pEvent->Type	 = EVENT_TPYE_OTHER;
+	pEvent->Behavior = NtDuplicateObject;
 	Handle2Target(pEvent,TargetProcessHandle);
 
-	//是否自身行为？
-	if (IsTrustedProcess(pEvent))
-	{
-		goto _label;
-	}
-	//是否对Ad-BAT不利？
-	if (TargetProcessHandle == PsGetCurrentProcess())
-	{
-		goto _label_evil;
-	}
-	//是否在白名单中？
-	if (IsInWhiteList(pEvent))
-	{
-		goto _label;
-	}
 	//用户层判断结果？
-	if (JudgeByUser(pEvent))
-	{
-		goto _label;
-	}
-_label_evil:
+	if (JudgeByUser(pEvent))		goto _label;
 
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(SourceProcessHandle,
@@ -1478,17 +1315,25 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 //内核判断逻辑函数
 //////////////////////////////////////////////////////////////////////////
 //是否为可信行为(尚未进行扩展)
-BOOLEAN IsTrustedProcess(Event* pEvent)
+BOOLEAN IsTrustedProcess()
 {
-	pEvent->Pid = PsGetCurrentProcessId();
-	
-	return hGlobalSelfProcHandle == PsGetCurrentProcess() ? TRUE : FALSE;
+	ULONG Pid = PsGetCurrentProcessId();
+	//与可信进程名单比对,未完全实现(把Ad-BAT放最前有优势)
+	if (Pid==dwGlobalSelfPid || Pid==0 || Pid==4 )
+	{
+		return TRUE;
+	}
+
+	return FALSE;
 }
+
 //是否在白名单中
 BOOLEAN IsInWhiteList(Event* pEvent)
 {
-	//TODO.. 白名单判断，现在先用于行为dbgprint
 
+	return TRUE;
+	//TODO.. 白名单判断，现在先用于行为dbgprint
+/*
 	PLIST_ENTRY pListPtrNow;
 
 	BOOLEAN JudgeRst = TRUE;
@@ -1642,14 +1487,19 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 	ExFreePool(HashsListTemp.pHashsF);
 
 	return JudgeRst;
+*/
 }
 
 //用户层判断结果反馈
 BOOLEAN JudgeByUser(Event* pEvent)
 {
 	//TODO.. 与用户层及分发函数进行交互，待定...
-
 	BOOLEAN JudgeRst;
+
+	if (pEvent->Type==EVENT_TPYE_PROC || pEvent->Type==EVENT_TPYE_OTHER)
+	{
+		DbgPrint("%d\t%d\t%d\t%s\n",pEvent->Type,pEvent->Behavior,pEvent->Pid,pEvent->Target);
+	}
 
 	KeWaitForSingleObject(&IoJudgeMutex,Executive,KernelMode,FALSE,NULL);
 	RtlCopyMemory(IoBuff,pEvent,sizeof(Event));
@@ -1705,12 +1555,10 @@ NTSTATUS String2Target(Event* pEvent,PUNICODE_STRING pUnicodeString)
 //从句柄获得
 NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle)
 {
+	PUNICODE_STRING	pUnsiString;
 	NTSTATUS status = STATUS_UNSUCCESSFUL;
 	PVOID pObject = NULL;
-	PUNICODE_STRING pUnsiString;
-	ZWQUERYINFORMATIONPROCESS	ZwQueryInformationProcess;
-	ZWQUERYINFORMATIONTHREAD	ZwQueryInformationThread;
-	THREAD_BASIC_INFORMATION	tbi;
+
 	INT	nRet;
 
 	if (Handle == NULL)
@@ -1722,26 +1570,6 @@ NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle)
 	{
 		return status;
 	}
-
-	//if (pEvent->Behavior==NtQueueApcThread || pEvent->Behavior==NtTerminateThread)
-	//{
-	//	RtlInitUnicodeString(pUnsiString,L"ZwQueryInformationThread");;
-
-	//	ZwQueryInformationThread = MmGetSystemRoutineAddress(pUnsiString);
-	//	if (ZwQueryInformationThread == NULL)
-	//	{
-	//		ExFreePool(pUnsiString);
-	//		return status;
-	//	}
-
-	//	status = ZwQueryInformationThread(Handle,ThreadBasicInformation,&tbi,sizeof(THREAD_BASIC_INFORMATION),&nRet);
-	//	if (!NT_SUCCESS(status))
-	//	{
-	//		return status;
-	//	}	
-
-	//}
-
 
 	//进行各种类型判断
 	switch (pEvent->Type)
@@ -1763,17 +1591,8 @@ NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle)
 		}
 		break;
 	case EVENT_TPYE_PROC:
-	case EVENT_TPYE_INFO:
+	case EVENT_TPYE_OTHER:
 		{
-			RtlInitUnicodeString(pUnsiString,L"ZwQueryInformationProcess");
-
-			ZwQueryInformationProcess = MmGetSystemRoutineAddress(pUnsiString);
-			if (ZwQueryInformationProcess == NULL)
-			{
-				ExFreePool(pUnsiString);
-				return status;
-			}
-
 			status = ZwQueryInformationProcess(Handle,ProcessImageFileName,pUnsiString,1028,&nRet);
 			if (!NT_SUCCESS(status))
 			{
@@ -1786,6 +1605,63 @@ NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle)
 	ExFreePool(pUnsiString);
 
 	return status;
+}
+
+//从进程句柄获得进程PID
+ULONG	ProcessHandle2Pid(HANDLE ProcessHanle)
+{
+	NTSTATUS	status;
+	ULONG nRet;
+	PROCESS_BASIC_INFORMATION	PBI;
+
+	status = ZwQueryInformationProcess(ProcessHanle,ProcessBasicInformation,&PBI,sizeof(PROCESS_BASIC_INFORMATION),&nRet);
+	if (!NT_SUCCESS(status))
+	{
+		return -1;
+	}
+
+	return PBI.UniqueProcessId;
+}
+
+//从线程句柄得到进程PID
+ULONG	ThreadHandle2Pid(HANDLE ThreadHandle)
+{
+	NTSTATUS status;
+	THREAD_BASIC_INFORMATION	tbi;
+	ULONG	nRet;
+
+	status = ZwQueryInformationThread(ThreadHandle,
+									  ThreadBasicInformation,
+									  &tbi,
+									  sizeof(THREAD_BASIC_INFORMATION),
+									  &nRet);
+	if (!NT_SUCCESS(status))
+	{
+		return -1;
+	}
+
+	return tbi.UniqueProcessId;
+}
+
+//进程PID得到进程句柄
+HANDLE  Pid2ProcessHandle(ULONG Pid)
+{
+	NTSTATUS status;
+	OBJECT_ATTRIBUTES	ObjAttributes;
+	CLIENT_ID	ClId;
+	HANDLE	Handle;
+	NTOPENPROCESS OldNtFunc = HookFunc[NtOpenProcess].NtFunc;
+
+	InitializeObjectAttributes(&ObjAttributes,NULL,NULL,NULL,NULL);
+	ClId.UniqueProcess	= Pid;
+
+	status = OldNtFunc(&Handle,NULL,&ObjAttributes,&ClId);
+	if (!NT_SUCCESS(status))
+	{
+		return -1;
+	}
+
+	return Handle;
 }
 
 
