@@ -51,7 +51,7 @@
 #define EVENT_TPYE_PROC	1
 #define EVENT_TPYE_REG	2
 #define EVENT_TPYE_FILE	3
-#define EVENT_TPYE_INFO	4
+#define EVENT_TPYE_OTHER	4
 
 
 
@@ -139,7 +139,7 @@ NTSTATUS GetSsdtApi(PCHAR szApiName,PUNICODE_STRING szDll);
 
 //内核判断逻辑函数
 //是否为可信行为
-BOOLEAN IsTrustedProcess(Event* pEvent);
+BOOLEAN IsTrustedProcess();
 //是否在白名单中
 BOOLEAN IsInWhiteList(Event* pEvent);
 //用户层判断结果反馈
@@ -150,6 +150,13 @@ BOOLEAN JudgeByUser(Event* pEvent);
 NTSTATUS String2Target(Event* pEvent,PUNICODE_STRING pUnicodeString);
 //从句柄获得
 NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle);
+//从进程句柄获得进程PID
+ULONG	ProcessHandle2Pid(HANDLE ProcessHanle);
+//从线程句柄得到进程PID
+ULONG	ThreadHandle2Pid(HANDLE ThreadHandle);
+//进程PID得到进程句柄
+HANDLE  Pid2ProcessHandle(ULONG Pid);
+
 
 //从指定文件读取规则库
 NTSTATUS	ReadRules(PUNICODE_STRING	pFileName,PLIST_ENTRY	pListEntry);
