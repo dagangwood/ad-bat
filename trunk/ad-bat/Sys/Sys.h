@@ -129,6 +129,9 @@ PVOID* NewSystemCall;
 //函数声明部分
 //////////////////////////////////////////////////////////////////////////
 
+//把字符串转换成数字
+ULONG atoi(PCHAR pBuffer);
+
 //驱动卸载函数
 VOID OnUnload(__in PDRIVER_OBJECT DriverObject);
 //Io控制函数

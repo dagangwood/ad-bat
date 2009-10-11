@@ -6,31 +6,32 @@
 #####################
 #自身进程
 #####################
-Ad-BAT	(Pid在内核中获得)
-
+#	Ad-BAT	(Pid在内核中获得)
++	123456
+-	654321
 
 #######################
 #		系统核心进程
 #######################
-System	(Pid==4)
-System Idle Process	(Pid==0)
+#	System	(Pid==4)
+#	System Idle Process	(Pid==0)
 #肯定没什么问题的进程
-C:\WINDOWS\system32\smss.exe
-C:\WINDOWS\system32\winlogon.exe
-C:\WINDOWS\system32\services.exe
-C:\WINDOWS\system32\csrss.exe
-C:\WINDOWS\system32\lsass.exe
+#	C:\WINDOWS\system32\smss.exe
+#	C:\WINDOWS\system32\winlogon.exe
+#	C:\WINDOWS\system32\services.exe
+#	C:\WINDOWS\system32\csrss.exe
+#	C:\WINDOWS\system32\lsass.exe
 #乱七八糟不常用的进程，应该也没啥子问题
-C:\\WINDOWS\\system32\\wuauclt\.exe
-C:\\WINDOWS\\system32\\savedump\.exe
-C:\\WINDOWS\\system32\\logon\.scr
-C:\\WINDOWS\\system32\\dfrgntfs\.exe
-C:\\WINDOWS\\system32\\defrag\.exe
-C:\\WINDOWS\\msagent\\agentsvr.exe
+#	C:\\WINDOWS\\system32\\wuauclt\.exe
+#	C:\\WINDOWS\\system32\\savedump\.exe
+#	C:\\WINDOWS\\system32\\logon\.scr
+#	C:\\WINDOWS\\system32\\dfrgntfs\.exe
+#	C:\\WINDOWS\\system32\\defrag\.exe
+#	C:\\WINDOWS\\msagent\\agentsvr.exe
 #系统的进程，行为多，万一被注入怎么办？
-C:\WINDOWS\explorer.exe
-C:\WINDOWS\system32\svchost.exe
-C:\Program Files\Internet Explorer\iexplore.exe
+#	C:\WINDOWS\explorer.exe
+#	C:\WINDOWS\system32\svchost.exe
+#	C:\Program Files\Internet Explorer\iexplore.exe
 
 
 ########################

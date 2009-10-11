@@ -126,7 +126,6 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 	//{
 	//	SsdtHook(&HookFunc[i],TRUE);
 	//}
-	SsdtHook(&HookFunc[NtDuplicateObject],TRUE);
 
 	// 驱动卸载函数 
 	pDriverObject->DriverUnload = OnUnload;
@@ -1348,7 +1347,6 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 
 			RtlInitUnicodeString(&TrustedProcName,L"\\??\\C:\\TrustedProcess.rul");
 			ReadParseProcRules(&TrustedProcName,&TrustedProcListHdr);
-
 			DbgPrint("Read Rules End\n");
 
 			//Got event object from user mode
@@ -1372,11 +1370,14 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 
 			KeInitializeMutex(&IoJudgeMutex,0);
 
+			_asm{STI}
 			//开始SSDT Hook
 			for (i=0;i<HOOKNUMS;i++)
 			{
 				SsdtHook(&HookFunc[i],TRUE);
 			}
+			InitTrustedProcess();
+			_asm{CLI}
 
 		}
 		break;
@@ -1406,6 +1407,7 @@ BOOLEAN IsTrustedProcess()
 		{
 			return TRUE;
 		}
+		pEntryNow = pEntryNow->Flink;
 	}
 
 	return FALSE;
@@ -1950,7 +1952,7 @@ NTSTATUS ReadParseProcRules(PUNICODE_STRING pFileName,PLIST_ENTRY pListHdr)
 	PProcListItem	pProcListItem = NULL;
 	//初始化链表
 	//首先填充 System=0 System Idle Process =0
-	InitializeListHead(&TrustedProcListHdr);
+	InitializeListHead(pListHdr);
 	pProcListItem = (PProcListItem)ExAllocateFromNPagedLookasideList(&nPagedList);
 	pProcListItem->Pid = 0;
 	pProcListItem->Hash = 0xFFFFFFFF;
@@ -1977,7 +1979,7 @@ NTSTATUS ReadParseProcRules(PUNICODE_STRING pFileName,PLIST_ENTRY pListHdr)
 				pProcListItem->Pid  = 0xFFFFFFFF;
 				pProcListItem->Type = *pBuffer++;
 				while (*pBuffer==' ' || *pBuffer=='\t')	pBuffer++;
-				pProcListItem->Hash = *(PULONG)pBuffer;
+				pProcListItem->Hash = atoi(pBuffer);
 				pBuffer += sizeof(ULONG)+sizeof("\n\r");
 				InsertTailList(pListHdr,&pProcListItem->ListEntry);
 			}
@@ -2032,7 +2034,7 @@ PCHAR ReadFile(PUNICODE_STRING pFileName,ULONG nSize)
 	if (!NT_SUCCESS(status))
 	{
 		DbgPrint("ZwCreateFile Error!");
-		return status;
+		return NULL;
 	}
 
 	if (nSize==0)
@@ -2046,7 +2048,7 @@ PCHAR ReadFile(PUNICODE_STRING pFileName,ULONG nSize)
 		if (!NT_SUCCESS(status))
 		{
 			DbgPrint("ZwQueryInformationFile Error!");
-			return status;
+			return NULL;
 		}
 
 		nSize = fsi.EndOfFile.QuadPart;
@@ -2057,7 +2059,7 @@ PCHAR ReadFile(PUNICODE_STRING pFileName,ULONG nSize)
 	if (pBuffer==NULL)
 	{
 		DbgPrint("ExAllocatePool Error!");
-		return status;
+		return NULL;
 	}
 
 	RtlZeroMemory(pBuffer,nSize);
@@ -2075,7 +2077,7 @@ PCHAR ReadFile(PUNICODE_STRING pFileName,ULONG nSize)
 	if (!NT_SUCCESS(status) && status!=STATUS_END_OF_FILE)
 	{
 		DbgPrint("ZwReadFile Error!");
-		return status;
+		return NULL;
 	}
 
 	//关闭文件句柄
@@ -2123,14 +2125,10 @@ NTSTATUS InitTrustedProcess()
 	pInfo = (PSYSTEM_PROCESSES)pBuff;
 	do 
 	{	
-		if (pInfo->ProcessId==0 || pInfo->ProcessId==4)
-		{
-			pInfo = (PSYSTEM_PROCESSES)((PCHAR)pInfo+pInfo->NextEntryDelta);
-			continue;
-		}
-
+		if (pInfo->ProcessId==0 || pInfo->ProcessId==4)	goto _label;
 		Handle2Target(&TempEvent,Pid2ProcessHandle(pInfo->ProcessId));
 		pBuff = ReadFile(TempEvent.Target,HASHSIZE);
+		if (!pBuff)		goto _label;
 		Hash = GetHash(pBuff,HASHSIZE);
 
 		pEntryNow = TrustedProcListHdr.Flink;
@@ -2149,7 +2147,7 @@ NTSTATUS InitTrustedProcess()
 		}
 
 		DbgPrint("%S\t%d\n",pInfo->ProcessName.Buffer,pInfo->ProcessId);
-
+_label:
 		pInfo = (PSYSTEM_PROCESSES)((PCHAR)pInfo+pInfo->NextEntryDelta);
 	} while (pInfo->NextEntryDelta);
 
@@ -2259,4 +2257,19 @@ PULONG GetHashsB(PULONG pHashsLen,PCHAR pStr)
 	*pHashsLen = len;
 
 	return pHashs;
+}
+
+
+//把字符串转换成数字
+ULONG atoi(PCHAR pBuffer)
+{
+	ULONG num = 0;
+
+	while (*pBuffer>=0 && *pBuffer<=9)
+	{
+		num = num*10 + pBuffer;
+		pBuffer++;
+	}
+
+	return num;
 }
