@@ -8,6 +8,8 @@
 
 //Hook函数个数
 #define HOOKNUMS	18
+//EXE Hash 长度
+#define HASHSIZE	4096
 
 //////////////////////////////////////////////////////////////////////////
 //Event.Behavior Define
@@ -20,16 +22,16 @@
 #define NtCreateFile			0x05
 #define NtWriteFile				0x06
 #define NtSetInformationFile	0x07
-#define NtOpenProcess			0x08
+#define NtOpenProcess			0x08	//Y
 #define NtCreateProcess			0x09
-#define NtCreateProcessEx		0x0A
-#define NtTerminateProcess		0x0B
-#define NtCreateThread			0x0C
-#define NtTerminateThread		0x0D
+#define NtCreateProcessEx		0x0A	//X
+#define NtTerminateProcess		0x0B	//XY
+#define NtCreateThread			0x0C	//Y
+#define NtTerminateThread		0x0D	//Y
 #define NtQueueApcThread		0x0E
-#define NtWriteVirtualMemory	0x0F
+#define NtWriteVirtualMemory	0x0F	//Y
 #define NtSetSystemInformation	0x10
-#define NtDuplicateObject		0x11
+#define NtDuplicateObject		0x11	//Y
 
 //Io控制码
 //Io控制码
@@ -54,10 +56,6 @@
 #define EVENT_TPYE_OTHER	4
 
 
-
-
-
-
 //用于存储Hook信息的结构体
 typedef struct Hook{
 	ULONG	ZwIndex;	//原始函数地址 ZwXXXX
@@ -79,8 +77,16 @@ typedef struct ListItem{
 	LIST_ENTRY	ListEntry;	//链表
 	ULONG		Hash;		//字符串Hash
 	ULONG		Length;		//字符串长度
-	char		Type;		//比对方式
+	CHAR		Type;		//比对方式
 }ListItem,*PListItem;
+
+//可信进程规则格式
+typedef struct ProcListItem{
+	LIST_ENTRY	ListEntry;	//链表
+	ULONG		Hash;		//EXE文件Hash
+	ULONG		Pid;		//EXE进程Pid
+	CHAR		Type;		//比对方式
+}ProcListItem,*PProcListItem;
 
 //哈希表
 typedef struct HashsList
@@ -146,6 +152,8 @@ BOOLEAN IsInWhiteList(Event* pEvent);
 BOOLEAN JudgeByUser(Event* pEvent);
 
 //Event->Target获得方式
+//路径格式转换
+NTSTATUS GetDosPath(PCHAR pString);
 //从字符串获得
 NTSTATUS String2Target(Event* pEvent,PUNICODE_STRING pUnicodeString);
 //从句柄获得
@@ -159,9 +167,16 @@ HANDLE  Pid2ProcessHandle(ULONG Pid);
 
 
 //从指定文件读取规则库
-NTSTATUS	ReadRules(PUNICODE_STRING	pFileName,PLIST_ENTRY	pListEntry);
+NTSTATUS ReadRules(PUNICODE_STRING pFileName,PLIST_ENTRY	pListHdr);
 //解析规则库
-NTSTATUS	ParseRules(PCHAR pBuffer,PLIST_ENTRY	pListHdr);
+NTSTATUS ParseRules(PCHAR pBuffer,PLIST_ENTRY	pListHdr);
+//读取并解析可信进程规则库
+NTSTATUS ReadParseProcRules(PUNICODE_STRING pFileName,PLIST_ENTRY pListHdr);
+PCHAR    ReadFile(PUNICODE_STRING pFileName,ULONG nSize);
+ULONG	 GetHash(PCHAR pBuffer,ULONG nSize);
+//初始化已可信的进程
+NTSTATUS InitTrustedProcess();
+
 //显示结果
 VOID Display(PLIST_ENTRY pListHdr);
 

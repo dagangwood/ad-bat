@@ -17,6 +17,7 @@ UNICODE_STRING symb_link = RTL_CONSTANT_STRING(L"\\DosDevices\\AdBAT");
 //ZwQueryInformationProcess函数地址
 ZWQUERYINFORMATIONPROCESS	ZwQueryInformationProcess = NULL;
 ZWQUERYINFORMATIONTHREAD	ZwQueryInformationThread  = NULL;
+ZWQUERYSYSTEMINFORMATION	ZwQuerySystemInformation  = NULL;
 
 //a event handle and object got from user mode 
 HANDLE hIoEvent = NULL;
@@ -39,6 +40,7 @@ ULONG	dwGlobalSelfPid		  = NULL;
 //文件、注册表规则库头指针
 LIST_ENTRY	FileListHdr;
 LIST_ENTRY	RegListHdr;
+LIST_ENTRY	TrustedProcListHdr;
 NPAGED_LOOKASIDE_LIST	nPagedList;
 
 NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
@@ -47,8 +49,8 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 {
 	NTSTATUS status;
 	PDEVICE_OBJECT device;
-	UNICODE_STRING ProcFuncString,ThreadFuncString;
-	//int i = 0;
+	UNICODE_STRING ProcFuncString,ThreadFuncString,SysInfoFuncString;
+	int i = 0;
 
 	//DbgPrint("DriverEntry() Function...\n");
 
@@ -104,6 +106,14 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 		return status;
 	}
 
+	//初始化ZwQuerySystemInformation地址
+	RtlInitUnicodeString(&SysInfoFuncString,L"ZwQuerySystemInformation");
+	ZwQuerySystemInformation = MmGetSystemRoutineAddress(&SysInfoFuncString);
+	if (ZwQuerySystemInformation == NULL)
+	{
+		return status;
+	}
+
 	//初始化SSDT Hook 操作
 	status = InitSsdtHook();
 	if (!NT_SUCCESS(status))
@@ -112,10 +122,11 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 	}
 
 	//开始SSDT Hook
-	//for (i=0;i<HOOKNUMS;i++)
+	//for (i=8;i<HOOKNUMS;i++)
 	//{
 	//	SsdtHook(&HookFunc[i],TRUE);
 	//}
+	SsdtHook(&HookFunc[NtDuplicateObject],TRUE);
 
 	// 驱动卸载函数 
 	pDriverObject->DriverUnload = OnUnload;
@@ -149,6 +160,7 @@ VOID OnUnload(__in PDRIVER_OBJECT DriverObject)
 
 	Display(&FileListHdr);
 	Display(&RegListHdr);
+	Display(&TrustedProcListHdr);
 
 	// 删除所有驱动设备句柄
 	while(pdoNextDeviceObj)
@@ -345,6 +357,10 @@ NTSTATUS NewCreateKey(__out PHANDLE KeyHandle,
 	pEvent->Behavior	= NtCreateKey;
 	if (ObjectAttributes!=NULL)
 	{
+		if (ObjectAttributes->RootDirectory != NULL)
+		{
+			Handle2Target(pEvent,ObjectAttributes->RootDirectory);
+		}
 		String2Target(pEvent,ObjectAttributes->ObjectName);
 	}
 
@@ -645,13 +661,16 @@ NTSTATUS NewOpenProcess(__out PHANDLE ProcessHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTOPENPROCESS OldNtFunc = HookFunc[NtOpenProcess].NtFunc;
-	//DbgPrint("NewOpenProcess() Function...\n");	
+	//DbgPrint("NewOpenProcess() Function...\n");
+
+
 
 	//ClientId为空则放行，后期版本需要继续判断ObjectAttributes字段
 	if (!ClientId)	goto _label;
 	
 	//对自身进行操作？
 	if (ClientId->UniqueProcess == PsGetCurrentProcessId())	goto _label;
+	DbgPrint("OpenProcess:%d\t%d",ClientId->UniqueProcess,PsGetCurrentProcessId());
 
 	//是否在可信进程列表中？
 	if (IsTrustedProcess())		goto _label;
@@ -667,14 +686,14 @@ NTSTATUS NewOpenProcess(__out PHANDLE ProcessHandle,
 	if (JudgeByUser(pEvent))	goto _label;
 	
 	//禁止执行
+	ProcessHandle = NULL;
 	return STATUS_ACCESS_DENIED;
 
 _label:
 	status = OldNtFunc(ProcessHandle,
-					   DesiredAccess,
-					   ObjectAttributes,
-					   ClientId);
-
+		               DesiredAccess,
+		               ObjectAttributes,
+		               ClientId);
 	return status;
 }
 
@@ -737,18 +756,40 @@ NTSTATUS NewCreateProcessEx(__out PHANDLE ProcessHandle,
 	Event	LocalEvent;
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
+	PCHAR pBuffer;
+	ULONG Hash;
+	PLIST_ENTRY pEntryNow;
+	ProcListItem* pItemNow;
 	NTCREATEPROCESSEX OldNtFunc = HookFunc[NtCreateProcessEx].NtFunc;
+	BOOLEAN bTrustedProcess = FALSE;
 	//DbgPrint("NewCreateProcessEx() Function...\n");
 
-	//是否在可信进程列表中？
-	if (IsTrustedProcess())		goto _label;
-
+	//创建的是否为可信进程
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
 	pEvent->Pid		 = PsGetCurrentProcessId();
 	pEvent->Type	 = EVENT_TPYE_PROC;
 	pEvent->Behavior = NtCreateProcessEx;
 	Handle2Target(pEvent,SectionHandle);
+
+	pBuffer = ReadFile(pEvent->Target,HASHSIZE);
+	Hash = GetHash(pBuffer,HASHSIZE);
+
+	pEntryNow = TrustedProcListHdr.Flink;
+	while (pEntryNow != &TrustedProcListHdr)
+	{
+		pItemNow = CONTAINING_RECORD(pEntryNow,ProcListItem,ListEntry);
+		if (pItemNow->Hash == Hash)
+		{
+			bTrustedProcess = TRUE;
+			goto _label;
+		}
+	}
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label; 
+
+
 
 	//用户层判断结果？
 	if (JudgeByUser(pEvent))		goto _label;
@@ -766,7 +807,11 @@ _label:
 					   DebugPort,
 					   ExceptionPort,
 					   Unknown);
-
+	pItemNow = ExAllocateFromNPagedLookasideList(&nPagedList);
+	pItemNow->Hash = Hash;
+	pItemNow->Pid = ProcessHandle2Pid(*ProcessHandle);
+	pItemNow->Type = '+';
+	InsertTailList(&TrustedProcListHdr,&pItemNow->ListEntry);
 	return status;
 }
 
@@ -775,9 +820,13 @@ NTSTATUS NewTerminateProcess(__in_opt HANDLE ProcessHandle,
 							 __in NTSTATUS ExitStatus)
 {
 	Event	LocalEvent;
-	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
+	PLIST_ENTRY pEntryNow;
+	ProcListItem* pListItemNow;
+	Event* pEvent = &LocalEvent;
+
 	NTTERMINATEPROCESS OldNtFunc = HookFunc[NtTerminateProcess].NtFunc;
+	ULONG Pid = ProcessHandle2Pid(ProcessHandle);
 	//DbgPrint("NewTerminateProcess() Function...\n");
 
 	//是否在可信进程列表中？
@@ -799,7 +848,20 @@ NTSTATUS NewTerminateProcess(__in_opt HANDLE ProcessHandle,
 _label:
 	status = OldNtFunc(ProcessHandle,
 					   ExitStatus);
-
+	if (status==STATUS_SUCCESS)
+	{
+		pEntryNow = TrustedProcListHdr.Flink;
+		while(pEntryNow != &TrustedProcListHdr)
+		{
+			pListItemNow = CONTAINING_RECORD(pEntryNow,ProcListItem,ListEntry);
+			if (pListItemNow->Pid == Pid)
+			{
+				ExFreeToNPagedLookasideList(&nPagedList,RemoveHeadList(pEntryNow));
+				break;
+			}
+			pEntryNow = pEntryNow->Flink;
+		}
+	}
 	return status;
 }
 
@@ -1026,7 +1088,7 @@ NTSTATUS NewDuplicateObject(__in HANDLE SourceProcessHandle,
 	NTDUPLICATEOBJECT OldNtFunc = HookFunc[NtDuplicateObject].NtFunc;
 	//DbgPrint("NewDuplicateObject() Function...\n");
 	
-	if (SourceHandle == TargetHandle)	goto _label;
+	if (SourceProcessHandle == TargetProcessHandle)	goto _label;
 
 	//是否在可信进程列表中？
 	if (IsTrustedProcess())		goto _label;
@@ -1144,11 +1206,11 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 {
 	int i = 0;
 	PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(pIrp);
-	UNICODE_STRING	FileListName,RegListName;
+	UNICODE_STRING	FileListName,RegListName,TrustedProcName;
 	NTSTATUS Status;
 
 	ULONG BuffPtr = NULL;
-
+	ProcListItem* pItem;
 	ULONG Code = IrpSp->Parameters.DeviceIoControl.IoControlCode;
 
 	ULONG InputLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
@@ -1252,8 +1314,21 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 		break;
 	case INFO_IN:
 		{
-			DbgPrint("INFO_IN");
+			//添加一个可信进程  传入第一个ULONG为MD5 第二个ULONG为Type
+			if (InputLength != sizeof(ULONG)+sizeof(CHAR))
+			{
+				break;
+			}
 
+			pItem = (PProcListItem)ExAllocateFromNPagedLookasideList(&nPagedList);
+			if (pItem == NULL)
+			{
+				break;
+			}
+			RtlCopyMemory(&pItem->Hash,(ULONG)pIoBuff,sizeof(ULONG));
+			RtlCopyMemory(&pItem->Type,(PCHAR)pIoBuff+sizeof(ULONG),sizeof(CHAR));
+			pItem->Pid = 0xFFFFFFFF;
+			InsertTailList(&TrustedProcListHdr,&pItem->ListEntry);
 		}
 		break;
 	case GET_PID_EVENT:
@@ -1270,6 +1345,9 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 
 			RtlInitUnicodeString(&RegListName,L"\\??\\C:\\File.rul");
 			ReadRules(&RegListName,&RegListHdr);
+
+			RtlInitUnicodeString(&TrustedProcName,L"\\??\\C:\\TrustedProcess.rul");
+			ReadParseProcRules(&TrustedProcName,&TrustedProcListHdr);
 
 			DbgPrint("Read Rules End\n");
 
@@ -1317,11 +1395,17 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 //是否为可信行为(尚未进行扩展)
 BOOLEAN IsTrustedProcess()
 {
+	ProcListItem* pItemNow;
+	PLIST_ENTRY pEntryNow = TrustedProcListHdr.Flink;
 	ULONG Pid = PsGetCurrentProcessId();
-	//与可信进程名单比对,未完全实现(把Ad-BAT放最前有优势)
-	if (Pid==dwGlobalSelfPid || Pid==0 || Pid==4 )
+
+	while(pEntryNow!=&TrustedProcListHdr)
 	{
-		return TRUE;
+		pItemNow = CONTAINING_RECORD(&TrustedProcListHdr,ProcListItem,ListEntry);
+		if (pItemNow->Pid==Pid)
+		{
+			return TRUE;
+		}
 	}
 
 	return FALSE;
@@ -1331,9 +1415,8 @@ BOOLEAN IsTrustedProcess()
 BOOLEAN IsInWhiteList(Event* pEvent)
 {
 
-	return TRUE;
 	//TODO.. 白名单判断，现在先用于行为dbgprint
-/*
+
 	PLIST_ENTRY pListPtrNow;
 
 	BOOLEAN JudgeRst = TRUE;
@@ -1487,19 +1570,14 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 	ExFreePool(HashsListTemp.pHashsF);
 
 	return JudgeRst;
-*/
 }
 
 //用户层判断结果反馈
 BOOLEAN JudgeByUser(Event* pEvent)
 {
 	//TODO.. 与用户层及分发函数进行交互，待定...
-	BOOLEAN JudgeRst;
 
-	if (pEvent->Type==EVENT_TPYE_PROC || pEvent->Type==EVENT_TPYE_OTHER)
-	{
-		DbgPrint("%d\t%d\t%d\t%s\n",pEvent->Type,pEvent->Behavior,pEvent->Pid,pEvent->Target);
-	}
+	BOOLEAN JudgeRst;
 
 	KeWaitForSingleObject(&IoJudgeMutex,Executive,KernelMode,FALSE,NULL);
 	RtlCopyMemory(IoBuff,pEvent,sizeof(Event));
@@ -1517,6 +1595,30 @@ BOOLEAN JudgeByUser(Event* pEvent)
 //////////////////////////////////////////////////////////////////////////
 //Event->Target获得方式
 //////////////////////////////////////////////////////////////////////////
+//路径格式转换
+NTSTATUS GetDosPath(PCHAR pString)
+{
+	DWORD Stringlen;
+
+	RtlStringCbLengthA(pString,MAX_PATH+1,&Stringlen);
+
+	if (RtlCompareMemory(pString,"\\??\\",4)==4)
+	{
+		RtlCopyMemory(pString,pString+4,Stringlen-4);
+		RtlZeroMemory(pString+Stringlen-4,4);
+		return STATUS_SUCCESS;
+	}
+	if (RtlCompareMemory(pString,"\\DEVICE\\HARDDISKVOLUME",22)==22)
+	{
+		RtlCopyMemory(pString,pString+21,Stringlen-21);
+		RtlZeroMemory(pString+Stringlen-21,21);
+		((BYTE)pString[0]) = ((BYTE)pString[1])+18;
+		pString[1]=':';
+		return STATUS_SUCCESS;
+	}
+	return STATUS_UNSUCCESSFUL;
+}
+
 //从字符串获得
 NTSTATUS String2Target(Event* pEvent,PUNICODE_STRING pUnicodeString)
 {
@@ -1548,6 +1650,7 @@ NTSTATUS String2Target(Event* pEvent,PUNICODE_STRING pUnicodeString)
 	{
 		return status;
 	}
+	GetDosPath(pEvent->Target);
 
 	return STATUS_SUCCESS;
 }
@@ -1555,39 +1658,63 @@ NTSTATUS String2Target(Event* pEvent,PUNICODE_STRING pUnicodeString)
 //从句柄获得
 NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle)
 {
-	PUNICODE_STRING	pUnsiString;
 	NTSTATUS status = STATUS_UNSUCCESSFUL;
 	PVOID pObject = NULL;
-
+	WCHAR Buff[514] = {0};
+	UNICODE_STRING InfoUnsiString;
+	PUNICODE_STRING pUnsiString;
 	INT	nRet;
 
 	if (Handle == NULL)
 	{
 		return status;
 	}
-	pUnsiString = ExAllocatePool(NonPagedPool,1028);
+
+	pUnsiString = ExAllocatePool(KernelMode,1028);
 	if (pUnsiString == NULL)
 	{
 		return status;
 	}
 
+
+	RtlInitEmptyUnicodeString(&InfoUnsiString,Buff,1028);
+
 	//进行各种类型判断
 	switch (pEvent->Type)
 	{
 	case EVENT_TPYE_REG:
-	case EVENT_TPYE_FILE:
 		{
 			status = ObReferenceObjectByHandle(Handle,NULL,NULL,KernelMode,&pObject,NULL);
 			if (!NT_SUCCESS(status) || pObject==NULL)
 			{
 				return status;
 			}
+			//status = RtlVolumeDeviceToDosName(pObject,pUnsiString);
 			status = ObQueryNameString(pObject,pUnsiString,512,&nRet);
 			if (!NT_SUCCESS(status))
 			{
 				ObDereferenceObject(pObject);
 				return status;
 			}
+			RtlCopyUnicodeString(&InfoUnsiString,pUnsiString);
+		}
+		break;
+	case EVENT_TPYE_FILE:
+		{
+			status = ObReferenceObjectByHandle(Handle,NULL,*IoFileObjectType,KernelMode,&pObject,NULL);
+			if (!NT_SUCCESS(status) || pObject==NULL)
+			{
+				return status;
+			}
+			status = RtlVolumeDeviceToDosName(((PFILE_OBJECT)pObject)->DeviceObject,pUnsiString);
+			//status = ObQueryNameString(pObject,pUnsiString,512,&nRet);
+			if (!NT_SUCCESS(status))
+			{
+				ObDereferenceObject(pObject);
+				return status;
+			}
+			RtlCopyUnicodeString(&InfoUnsiString,pUnsiString);
+			RtlAppendUnicodeStringToString(&InfoUnsiString,&((PFILE_OBJECT)pObject)->FileName);
 		}
 		break;
 	case EVENT_TPYE_PROC:
@@ -1601,12 +1728,11 @@ NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle)
 		}
 		break;
 	}
-	status = String2Target(pEvent,pUnsiString);
+	status = String2Target(pEvent,&InfoUnsiString);
 	ExFreePool(pUnsiString);
 
 	return status;
 }
-
 //从进程句柄获得进程PID
 ULONG	ProcessHandle2Pid(HANDLE ProcessHanle)
 {
@@ -1649,16 +1775,17 @@ HANDLE  Pid2ProcessHandle(ULONG Pid)
 	NTSTATUS status;
 	OBJECT_ATTRIBUTES	ObjAttributes;
 	CLIENT_ID	ClId;
-	HANDLE	Handle;
+	HANDLE	Handle = NULL;
 	NTOPENPROCESS OldNtFunc = HookFunc[NtOpenProcess].NtFunc;
+	RtlZeroMemory(&ClId,sizeof(CLIENT_ID));
 
 	InitializeObjectAttributes(&ObjAttributes,NULL,NULL,NULL,NULL);
 	ClId.UniqueProcess	= Pid;
 
-	status = OldNtFunc(&Handle,NULL,&ObjAttributes,&ClId);
+	status = OldNtFunc(&Handle,PROCESS_DUP_HANDLE,&ObjAttributes,&ClId);
 	if (!NT_SUCCESS(status))
 	{
-		return -1;
+		return NULL;
 	}
 
 	return Handle;
@@ -1679,11 +1806,8 @@ NTSTATUS ReadRules(PUNICODE_STRING	pFileName,PLIST_ENTRY pListHdr)
 	LARGE_INTEGER	offset = {0};
 	PCHAR	pBuffer;
 
-
-
 	//初始化链表
 	InitializeListHead(pListHdr);
-
 
 	//初始化ObjectAttributes
 	InitializeObjectAttributes(&ObjAttributes,
@@ -1748,7 +1872,6 @@ NTSTATUS ReadRules(PUNICODE_STRING	pFileName,PLIST_ENTRY pListHdr)
 		return status;
 	}
 
-	DbgPrint("%S",pFileName->Buffer);
 	//关闭文件句柄
 	ZwClose(hFile);
 
@@ -1790,7 +1913,7 @@ NTSTATUS	ParseRules(PCHAR pBuffer,PLIST_ENTRY pListHdr)
 					pListItem->Length++;
 					Hash += *pBuffer++;
 					_asm{
-						mov eax,Hash
+							mov eax,Hash
 							ror eax,25
 							mov Hash,eax
 					}
@@ -1816,6 +1939,226 @@ NTSTATUS	ParseRules(PCHAR pBuffer,PLIST_ENTRY pListHdr)
 	return STATUS_SUCCESS;
 
 }
+
+
+//////////////////////////////////////////////////////////////////////////
+//读取并解析可信进程规则库
+//////////////////////////////////////////////////////////////////////////
+NTSTATUS ReadParseProcRules(PUNICODE_STRING pFileName,PLIST_ENTRY pListHdr)
+{
+	PCHAR pBuffer = NULL,pStart = NULL;
+	PProcListItem	pProcListItem = NULL;
+	//初始化链表
+	//首先填充 System=0 System Idle Process =0
+	InitializeListHead(&TrustedProcListHdr);
+	pProcListItem = (PProcListItem)ExAllocateFromNPagedLookasideList(&nPagedList);
+	pProcListItem->Pid = 0;
+	pProcListItem->Hash = 0xFFFFFFFF;
+	pProcListItem->Type = '+';
+	InsertTailList(pListHdr,&pProcListItem->ListEntry);
+	pProcListItem = (PProcListItem)ExAllocateFromNPagedLookasideList(&nPagedList);
+	pProcListItem->Pid = 4;
+	pProcListItem->Hash = 0xFFFFFFFF;
+	pProcListItem->Type = '+';
+	InsertTailList(pListHdr,&pProcListItem->ListEntry);
+
+	pStart = pBuffer = ReadFile(pFileName,NULL);
+
+	while (*pBuffer!='\0')
+	{
+		switch (*pBuffer)
+		{
+		case '+':
+		case '-':
+		case '<':
+		case '>':
+			{
+				pProcListItem = (PProcListItem)ExAllocateFromNPagedLookasideList(&nPagedList);
+				pProcListItem->Pid  = 0xFFFFFFFF;
+				pProcListItem->Type = *pBuffer++;
+				while (*pBuffer==' ' || *pBuffer=='\t')	pBuffer++;
+				pProcListItem->Hash = *(PULONG)pBuffer;
+				pBuffer += sizeof(ULONG)+sizeof("\n\r");
+				InsertTailList(pListHdr,&pProcListItem->ListEntry);
+			}
+			break;
+		case '\r':
+			{
+				pBuffer += 2;
+			}
+			break;
+		default:
+			{
+				while (*pBuffer++!='\n');
+			}
+			break;
+		}
+	}
+
+	ExFreePool(pStart);
+
+	return STATUS_SUCCESS;
+}
+
+PCHAR ReadFile(PUNICODE_STRING pFileName,ULONG nSize)
+{
+	NTSTATUS	status;
+	HANDLE	hFile;
+	IO_STATUS_BLOCK	iostatus;
+	OBJECT_ATTRIBUTES	ObjAttributes;
+	FILE_STANDARD_INFORMATION	fsi;
+	LARGE_INTEGER	offset = {0};
+	PCHAR	pBuffer;
+
+	//初始化ObjectAttributes
+	InitializeObjectAttributes(&ObjAttributes,
+		pFileName,
+		OBJ_CASE_INSENSITIVE,
+		NULL,
+		NULL);
+
+	//打开文件
+	status = ZwCreateFile(&hFile,
+		GENERIC_READ,
+		&ObjAttributes,
+		&iostatus,
+		NULL,
+		FILE_ATTRIBUTE_NORMAL,
+		FILE_SHARE_READ,
+		FILE_OPEN,
+		FILE_SYNCHRONOUS_IO_NONALERT,
+		NULL,
+		NULL);
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("ZwCreateFile Error!");
+		return status;
+	}
+
+	if (nSize==0)
+	{	
+		//读取文件长度
+		status =ZwQueryInformationFile(hFile,
+			&iostatus,
+			&fsi,
+			sizeof(FILE_STANDARD_INFORMATION),
+			FileStandardInformation);
+		if (!NT_SUCCESS(status))
+		{
+			DbgPrint("ZwQueryInformationFile Error!");
+			return status;
+		}
+
+		nSize = fsi.EndOfFile.QuadPart;
+	}
+
+	//为文件内容分配缓冲区
+	pBuffer = (PCHAR)ExAllocatePool(NonPagedPool,nSize);
+	if (pBuffer==NULL)
+	{
+		DbgPrint("ExAllocatePool Error!");
+		return status;
+	}
+
+	RtlZeroMemory(pBuffer,nSize);
+
+	//读取文件
+	status = ZwReadFile(hFile,
+		NULL,
+		NULL,
+		NULL,
+		&iostatus,
+		pBuffer,
+		nSize,
+		&offset,
+		NULL);
+	if (!NT_SUCCESS(status) && status!=STATUS_END_OF_FILE)
+	{
+		DbgPrint("ZwReadFile Error!");
+		return status;
+	}
+
+	//关闭文件句柄
+	ZwClose(hFile);
+
+	return pBuffer;
+}
+ULONG	GetHash(PCHAR pBuffer,ULONG nSize)
+{
+	ULONG index =0;
+	ULONG Hash = 0;
+
+	for (index = 0;index<nSize;index++)
+	{
+		Hash += (BYTE)pBuffer[index];
+		//移位运算
+		_asm
+		{
+			mov eax,Hash
+			ror eax,25
+			mov Hash,eax
+		}
+	}
+
+	return Hash;
+}
+
+//初始化已运行的可信进程
+NTSTATUS InitTrustedProcess()
+{
+	NTSTATUS	status = STATUS_UNSUCCESSFUL;
+	ULONG	nRet = 0;
+	PCHAR	pBuff;
+	ULONG	Hash;
+	PSYSTEM_PROCESSES pInfo;
+	PLIST_ENTRY pEntryNow;
+	ProcListItem* pItemNow;
+	Event TempEvent;
+
+
+	status = ZwQuerySystemInformation(SystemProcessesAndThreadsInformation,NULL,NULL,&nRet);
+	pBuff = ExAllocatePool(NonPagedPool,nRet);
+
+	status = ZwQuerySystemInformation(SystemProcessesAndThreadsInformation,pBuff,nRet,&nRet);
+	pInfo = (PSYSTEM_PROCESSES)pBuff;
+	do 
+	{	
+		if (pInfo->ProcessId==0 || pInfo->ProcessId==4)
+		{
+			pInfo = (PSYSTEM_PROCESSES)((PCHAR)pInfo+pInfo->NextEntryDelta);
+			continue;
+		}
+
+		Handle2Target(&TempEvent,Pid2ProcessHandle(pInfo->ProcessId));
+		pBuff = ReadFile(TempEvent.Target,HASHSIZE);
+		Hash = GetHash(pBuff,HASHSIZE);
+
+		pEntryNow = TrustedProcListHdr.Flink;
+		while (pEntryNow != &TrustedProcListHdr)
+		{
+			pItemNow = CONTAINING_RECORD(pEntryNow,ProcListItem,ListEntry);
+			if (pItemNow->Hash==Hash)
+			{
+				pItemNow = ExAllocateFromNPagedLookasideList(&nPagedList);
+				pItemNow->Hash = Hash;
+				pItemNow->Pid = pInfo->ProcessId;
+				pItemNow->Type = '+';
+				InsertTailList(&TrustedProcListHdr,&pItemNow->ListEntry);
+				break;
+			}
+		}
+
+		DbgPrint("%S\t%d\n",pInfo->ProcessName.Buffer,pInfo->ProcessId);
+
+		pInfo = (PSYSTEM_PROCESSES)((PCHAR)pInfo+pInfo->NextEntryDelta);
+	} while (pInfo->NextEntryDelta);
+
+	ExFreePool(pBuff);
+
+	return STATUS_SUCCESS;
+}
+
+
 
 //////////////////////////////////////////////////////////////////////////
 //显示结果

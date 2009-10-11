@@ -163,6 +163,50 @@ typedef struct _THREAD_BASIC_INFORMATION {
 	ULONG DiffProcessPriority; 
 } THREAD_BASIC_INFORMATION, *PTHREAD_BASIC_INFORMATION;
 
+typedef enum {
+	StateInitialized,
+	StateReady,
+	StateRunning,
+	StateStandby,
+	StateTerminated,
+	StateWait,
+	StateTransition,
+	StateUnknown
+} THREAD_STATE;
+
+
+typedef struct _SYSTEM_THREADS {
+	LARGE_INTEGER KernelTime;
+	LARGE_INTEGER UserTime;
+	LARGE_INTEGER CreateTime;
+	ULONG WaitTime;
+	PVOID StartAddress;
+	CLIENT_ID ClientId;
+	KPRIORITY Priority;
+	KPRIORITY BasePriority;
+	ULONG ContextSwitchCount;
+	THREAD_STATE State;
+	KWAIT_REASON WaitReason;
+} SYSTEM_THREADS, *PSYSTEM_THREADS;
+
+typedef struct _SYSTEM_PROCESSES {
+	ULONG NextEntryDelta;
+	ULONG ThreadCount;
+	ULONG Reserved1[6];
+	LARGE_INTEGER CreateTime;
+	LARGE_INTEGER UserTime;
+	LARGE_INTEGER KernelTime;
+	UNICODE_STRING ProcessName;
+	KPRIORITY BasePriority;
+	ULONG ProcessId;
+	ULONG InheritedFromProcessId;
+	ULONG HandleCount;
+	ULONG Reserved2[2];
+	VM_COUNTERS VmCounters;
+	IO_COUNTERS IoCounters; // Windows 2000 only
+	SYSTEM_THREADS Threads[1];
+} SYSTEM_PROCESSES, *PSYSTEM_PROCESSES;
+
 //	ZwQueryInformationThread
 typedef NTSTATUS (*ZWQUERYINFORMATIONTHREAD) (__in HANDLE ThreadHandle, 
 												  __in THREADINFOCLASS ThreadInformationClass, 
@@ -177,4 +221,10 @@ typedef NTSTATUS (*ZWQUERYINFORMATIONPROCESS)(__in HANDLE ProcessHandle,
 											  __out PVOID ProcessInformation,
 											  __in ULONG ProcessInformationLength,
 											  __out PULONG ReturnLength OPTIONAL);
+
+// ZwQuerySystemInformation
+typedef NTSTATUS (*ZWQUERYSYSTEMINFORMATION)(IN SYSTEM_INFORMATION_CLASS SystemInformationClass,
+											 IN OUT PVOID SystemInformation,
+											 IN ULONG SystemInformationLength,
+											 OUT PULONG ReturnLength OPTIONAL);
 
