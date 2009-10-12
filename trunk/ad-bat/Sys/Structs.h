@@ -2,11 +2,12 @@
 //补充Windows未文档化的结构体定义
 //////////////////////////////////////////////////////////////////////////
 #include <ntddk.h>
-/*#include <ntifs.h>*/
 #include <ntdef.h>
 #include <ntimage.h>
 #include <stdio.h>
 #include <ntstrsafe.h>
+#include <wdm.h>
+
 
 typedef unsigned char BYTE ;
 typedef unsigned int UINT;
@@ -228,3 +229,23 @@ typedef NTSTATUS (*ZWQUERYSYSTEMINFORMATION)(IN SYSTEM_INFORMATION_CLASS SystemI
 											 IN ULONG SystemInformationLength,
 											 OUT PULONG ReturnLength OPTIONAL);
 
+NTKERNELAPI
+NTSTATUS
+PsLookupProcessByProcessId(
+						   __in HANDLE ProcessId,
+						   __deref_out PEPROCESS *Process
+						   );
+
+#if (NTDDI_VERSION >= NTDDI_WIN2K)
+NTKERNELAPI
+NTSTATUS
+ObOpenObjectByPointer(
+					  __in PVOID Object,
+					  __in ULONG HandleAttributes,
+					  __in_opt PACCESS_STATE PassedAccessState OPTIONAL,
+					  __in ACCESS_MASK DesiredAccess OPTIONAL,
+					  __in_opt POBJECT_TYPE ObjectType OPTIONAL,
+					  __in KPROCESSOR_MODE AccessMode,
+					  __out PHANDLE Handle
+					  );
+#endif

@@ -662,14 +662,11 @@ NTSTATUS NewOpenProcess(__out PHANDLE ProcessHandle,
 	NTOPENPROCESS OldNtFunc = HookFunc[NtOpenProcess].NtFunc;
 	//DbgPrint("NewOpenProcess() Function...\n");
 
-
-
 	//ClientId为空则放行，后期版本需要继续判断ObjectAttributes字段
 	if (!ClientId)	goto _label;
 	
 	//对自身进行操作？
 	if (ClientId->UniqueProcess == PsGetCurrentProcessId())	goto _label;
-	DbgPrint("OpenProcess:%d\t%d",ClientId->UniqueProcess,PsGetCurrentProcessId());
 
 	//是否在可信进程列表中？
 	if (IsTrustedProcess())		goto _label;
@@ -685,7 +682,6 @@ NTSTATUS NewOpenProcess(__out PHANDLE ProcessHandle,
 	if (JudgeByUser(pEvent))	goto _label;
 	
 	//禁止执行
-	ProcessHandle = NULL;
 	return STATUS_ACCESS_DENIED;
 
 _label:
@@ -1347,6 +1343,7 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 
 			RtlInitUnicodeString(&TrustedProcName,L"\\??\\C:\\TrustedProcess.rul");
 			ReadParseProcRules(&TrustedProcName,&TrustedProcListHdr);
+			InitTrustedProcess();
 			DbgPrint("Read Rules End\n");
 
 			//Got event object from user mode
@@ -1370,14 +1367,11 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 
 			KeInitializeMutex(&IoJudgeMutex,0);
 
-			_asm{STI}
 			//开始SSDT Hook
 			for (i=0;i<HOOKNUMS;i++)
 			{
 				SsdtHook(&HookFunc[i],TRUE);
 			}
-			InitTrustedProcess();
-			_asm{CLI}
 
 		}
 		break;
@@ -1420,30 +1414,19 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 	//TODO.. 白名单判断，现在先用于行为dbgprint
 
 	PLIST_ENTRY pListPtrNow;
-
 	BOOLEAN JudgeRst = TRUE;
-
 	BOOLEAN IsRstOut = FALSE;
-
 	ULONG index = 0;
-
 	PListItem pListItemTemp = NULL;
-
 	HashsList HashsListTemp;
 
-
-
 	HashsListTemp.pHashsF = GetHashsF(&HashsListTemp.HashslenF,pEvent->Target);
-
 	HashsListTemp.pHashsB = GetHashsB(&HashsListTemp.HashslenB,pEvent->Target);
-
 
 	switch (pEvent->Type)
 	{
 	case EVENT_TPYE_FILE:
 		{
-			//DbgPrint("EVENT_TYPE_FILE");
-			DbgPrint("FILE LIST:\t%d\t%d\t%d\t%s\n",pEvent->Type,pEvent->Behavior,pEvent->Pid,pEvent->Target);
 			JudgeRst = TRUE;
 			pListPtrNow = FileListHdr.Flink;
 			while(pListPtrNow!=&FileListHdr&&!IsRstOut)
@@ -1504,8 +1487,6 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 		break;
 	case EVENT_TPYE_REG:
 		{
-			//DbgPrint("EVENT_TPYE_REG");
-			DbgPrint("REG LIST:\t%d\t%d\t%d\t%s\n",pEvent->Type,pEvent->Behavior,pEvent->Pid,pEvent->Target);
 			JudgeRst = TRUE;
 			pListPtrNow = RegListHdr.Flink;
 			while(pListPtrNow!=&RegListHdr&&!IsRstOut)
@@ -1578,7 +1559,8 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 BOOLEAN JudgeByUser(Event* pEvent)
 {
 	//TODO.. 与用户层及分发函数进行交互，待定...
-
+	EventDisplay(pEvent);
+/*
 	BOOLEAN JudgeRst;
 
 	KeWaitForSingleObject(&IoJudgeMutex,Executive,KernelMode,FALSE,NULL);
@@ -1588,7 +1570,7 @@ BOOLEAN JudgeByUser(Event* pEvent)
 	KeResetEvent((PKEVENT)JudgeEventObject);
 	RtlCopyMemory(&JudgeRst,JudgeBuff,sizeof(BOOLEAN));
 	KeReleaseMutex(&IoJudgeMutex,FALSE);
-
+*/
 	return TRUE;
 }
 
@@ -1628,6 +1610,7 @@ NTSTATUS String2Target(Event* pEvent,PUNICODE_STRING pUnicodeString)
 	ANSI_STRING AnsiString;
 	char* pStr = pEvent->Target;
 	DWORD nSize = 0;
+
 	while (*pStr != NULL)
 	{
 		pStr++;
@@ -1637,11 +1620,11 @@ NTSTATUS String2Target(Event* pEvent,PUNICODE_STRING pUnicodeString)
 	if (nSize)
 	{
 		pEvent->Target[nSize] = '\\';
+		pStr++;
 	}
-	
+	AnsiString.Buffer = pStr;
 	AnsiString.Length = 0;
 	AnsiString.MaximumLength = MAX_PATH-nSize;
-	AnsiString.Buffer = --pStr;
 	if (pUnicodeString == NULL)
 	{
 		return status;
@@ -1727,6 +1710,7 @@ NTSTATUS Handle2Target(Event* pEvent,HANDLE Handle)
 			{
 				return status;
 			}	
+			RtlCopyUnicodeString(&InfoUnsiString,pUnsiString);
 		}
 		break;
 	}
@@ -1775,22 +1759,37 @@ ULONG	ThreadHandle2Pid(HANDLE ThreadHandle)
 HANDLE  Pid2ProcessHandle(ULONG Pid)
 {
 	NTSTATUS status;
-	OBJECT_ATTRIBUTES	ObjAttributes;
-	CLIENT_ID	ClId;
-	HANDLE	Handle = NULL;
-	NTOPENPROCESS OldNtFunc = HookFunc[NtOpenProcess].NtFunc;
-	RtlZeroMemory(&ClId,sizeof(CLIENT_ID));
+	PEPROCESS	pEprocess;
+	HANDLE		ProcessHandle;
+	//OBJECT_ATTRIBUTES	ObjAttributes;
+	//CLIENT_ID	ClId;
+	//HANDLE	Handle = NULL;
+	//NTOPENPROCESS OldNtFunc = HookFunc[NtOpenProcess].NtFunc;
+	//RtlZeroMemory(&ClId,sizeof(CLIENT_ID));
 
-	InitializeObjectAttributes(&ObjAttributes,NULL,NULL,NULL,NULL);
-	ClId.UniqueProcess	= Pid;
+	//InitializeObjectAttributes(&ObjAttributes,NULL,NULL,NULL,NULL);
+	//ClId.UniqueProcess	= Pid;
 
-	status = OldNtFunc(&Handle,PROCESS_DUP_HANDLE,&ObjAttributes,&ClId);
+	//status = OldNtFunc(&Handle,NULL,&ObjAttributes,&ClId);
+	//if (!NT_SUCCESS(status))
+	//{
+	//	DbgPrint("NtOpenProcess Error! PID:%d\n",ClId.UniqueProcess);
+	//	return -1;
+	//}
+	status = PsLookupProcessByProcessId(Pid,&pEprocess);
 	if (!NT_SUCCESS(status))
 	{
 		return NULL;
 	}
+	status = ObOpenObjectByPointer(pEprocess,0, NULL, 0,0,KernelMode,&ProcessHandle);
+	if(!NT_SUCCESS(status))
+	{
+		ObDereferenceObject(pEprocess);
+		return NULL;
+	}
+	ObDereferenceObject(pEprocess);
 
-	return Handle;
+	return ProcessHandle;
 }
 
 
@@ -2110,24 +2109,29 @@ NTSTATUS InitTrustedProcess()
 {
 	NTSTATUS	status = STATUS_UNSUCCESSFUL;
 	ULONG	nRet = 0;
+	WCHAR	Buff[514] = {0};
 	PCHAR	pBuff;
 	ULONG	Hash;
+	UNICODE_STRING	szFileName;
 	PSYSTEM_PROCESSES pInfo;
 	PLIST_ENTRY pEntryNow;
 	ProcListItem* pItemNow;
 	Event TempEvent;
-
+	RtlZeroMemory(&TempEvent,sizeof(Event));
+	TempEvent.Type = EVENT_TPYE_PROC;
+	RtlInitEmptyUnicodeString(&szFileName,Buff,1028);
 
 	status = ZwQuerySystemInformation(SystemProcessesAndThreadsInformation,NULL,NULL,&nRet);
 	pBuff = ExAllocatePool(NonPagedPool,nRet);
-
 	status = ZwQuerySystemInformation(SystemProcessesAndThreadsInformation,pBuff,nRet,&nRet);
 	pInfo = (PSYSTEM_PROCESSES)pBuff;
+	
 	do 
 	{	
 		if (pInfo->ProcessId==0 || pInfo->ProcessId==4)	goto _label;
-		Handle2Target(&TempEvent,Pid2ProcessHandle(pInfo->ProcessId));
-		pBuff = ReadFile(TempEvent.Target,HASHSIZE);
+		status = ZwQueryInformationProcess(Pid2ProcessHandle(pInfo->ProcessId),ProcessImageFileName,&szFileName,1028,&nRet);
+		if (!NT_SUCCESS(status))	goto _label;
+		pBuff = ReadFile(&szFileName,HASHSIZE);
 		if (!pBuff)		goto _label;
 		Hash = GetHash(pBuff,HASHSIZE);
 
@@ -2144,9 +2148,9 @@ NTSTATUS InitTrustedProcess()
 				InsertTailList(&TrustedProcListHdr,&pItemNow->ListEntry);
 				break;
 			}
-		}
 
-		DbgPrint("%S\t%d\n",pInfo->ProcessName.Buffer,pInfo->ProcessId);
+			pEntryNow = pEntryNow->Flink;
+		}
 _label:
 		pInfo = (PSYSTEM_PROCESSES)((PCHAR)pInfo+pInfo->NextEntryDelta);
 	} while (pInfo->NextEntryDelta);
@@ -2176,6 +2180,109 @@ VOID Display(PLIST_ENTRY pListHdr)
 
 	ExDeleteNPagedLookasideList(&nPagedList);
 }
+
+VOID EventDisplay(Event* pEvent)
+{
+	char szFuncName[128] = {0};
+	switch (pEvent->Behavior)
+	{
+	case NtLoadDriver:
+		{
+			RtlCopyMemory(szFuncName,"NtLoadDriver",128);
+		}
+		break;
+	case NtCreateKey:
+		{
+			RtlCopyMemory(szFuncName,"NtCreateKey",128);
+		}
+		break;
+	case NtSetValueKey:
+		{
+			RtlCopyMemory(szFuncName,"NtSetValueKey",128);
+		}
+		break;
+	case NtDeleteKey:
+		{
+			RtlCopyMemory(szFuncName,"NtDeleteKey",128);
+		}
+		break;
+	case NtDeleteVauleKey:
+		{
+			RtlCopyMemory(szFuncName,"NtDeleteVauleKey",128);
+		}
+		break;
+	case NtCreateFile:	
+		{
+			RtlCopyMemory(szFuncName,"NtCreateFile",128);
+		}
+		break;
+	case NtWriteFile:		
+		{
+			RtlCopyMemory(szFuncName,"NtWriteFile",128);
+		}
+		break;
+	case NtSetInformationFile:
+		{
+			RtlCopyMemory(szFuncName,"NtSetInformationFile",128);
+		}
+		break;
+	case NtOpenProcess:	
+		{
+			RtlCopyMemory(szFuncName,"NtOpenProcess",128);
+		}
+		break;
+	case NtCreateProcess:	
+		{
+			RtlCopyMemory(szFuncName,"NtCreateProcess",128);
+		}
+		break;
+	case NtCreateProcessEx:
+		{
+			RtlCopyMemory(szFuncName,"NtCreateProcessEx",128);
+		}
+		break;
+	case NtTerminateProcess:
+		{
+			RtlCopyMemory(szFuncName,"NtTerminateProcess",128);
+		}
+		break;
+	case NtCreateThread:	
+		{
+			RtlCopyMemory(szFuncName,"NtCreateThread",128);
+		}
+		break;
+	case NtTerminateThread:
+		{
+			RtlCopyMemory(szFuncName,"NtTerminateThread",128);
+		}
+		break;
+	case NtQueueApcThread:	
+		{
+			RtlCopyMemory(szFuncName,"NtQueueApcThread",128);
+		}
+		break;
+	case NtWriteVirtualMemory:	
+		{
+			RtlCopyMemory(szFuncName,"NtWriteVirtualMemory",128);
+		}
+		break;
+	case NtSetSystemInformation:
+		{
+			RtlCopyMemory(szFuncName,"NtSetSystemInformation",128);
+		}
+		break;
+	case NtDuplicateObject:		
+		{
+			RtlCopyMemory(szFuncName,"NtDuplicateObject",128);
+		}
+		break;
+	}
+
+	DbgPrint("Pid:%d\t%s\t%s",pEvent->Pid,szFuncName,pEvent->Target);
+}
+
+
+
 
 //////////////////////////////////////////////////////////////////////////
 //正向、逆向计算Hash值
