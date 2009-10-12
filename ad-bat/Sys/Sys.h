@@ -182,10 +182,14 @@ NTSTATUS InitTrustedProcess();
 
 //显示结果
 VOID Display(PLIST_ENTRY pListHdr);
+VOID EventDisplay(Event* pEvent);
+
 
 //正向、逆向计算Hash
 PULONG GetHashsF(PULONG pHashsLen,PCHAR pStr);
 PULONG GetHashsB(PULONG pHashsLen,PCHAR pStr);
+
+
 
 
 #if (NTDDI_VERSION >= NTDDI_WIN2K)
