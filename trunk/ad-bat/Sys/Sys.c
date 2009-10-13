@@ -809,11 +809,14 @@ _label:
 					   DebugPort,
 					   ExceptionPort,
 					   Unknown);
-	pItemNow = ExAllocateFromNPagedLookasideList(&nPagedList);
-	pItemNow->Hash = Hash;
-	pItemNow->Pid = ProcessHandle2Pid(*ProcessHandle);
-	pItemNow->Type = '+';
-	InsertTailList(&TrustedProcListHdr,&pItemNow->ListEntry);
+	if (bTrustedProcess)
+	{
+		pItemNow = ExAllocateFromNPagedLookasideList(&nPagedList);
+		pItemNow->Hash = Hash;
+		pItemNow->Pid = ProcessHandle2Pid(*ProcessHandle);
+		pItemNow->Type = '+';
+		InsertTailList(&TrustedProcListHdr,&pItemNow->ListEntry);
+	}
 	return status;
 }
 
