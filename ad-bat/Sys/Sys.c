@@ -755,6 +755,7 @@ NTSTATUS NewCreateProcessEx(__out PHANDLE ProcessHandle,
 	ULONG Hash;
 	PLIST_ENTRY pEntryNow;
 	ProcListItem* pItemNow;
+	UNICODE_STRING	szFileName;
 	NTCREATEPROCESSEX OldNtFunc = HookFunc[NtCreateProcessEx].NtFunc;
 	BOOLEAN bTrustedProcess = FALSE;
 	//DbgPrint("NewCreateProcessEx() Function...\n");
@@ -766,9 +767,15 @@ NTSTATUS NewCreateProcessEx(__out PHANDLE ProcessHandle,
 	pEvent->Type	 = EVENT_TPYE_PROC;
 	pEvent->Behavior = NtCreateProcessEx;
 	Handle2Target(pEvent,SectionHandle);
-
-	pBuffer = ReadFile(pEvent->Target,HASHSIZE);
+	status = ZwQueryInformationProcess(SectionHandle,ProcessImageFileName,&szFileName,NULL,NULL);
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("NewCreateProcessEx ZwQueryInformationProcess Error!\n");
+		return status;
+	}
+	pBuffer = ReadFile(&szFileName,HASHSIZE);
 	Hash = GetHash(pBuffer,HASHSIZE);
+	ExFreePool(pBuffer);
 
 	pEntryNow = TrustedProcListHdr.Flink;
 	while (pEntryNow != &TrustedProcListHdr)
@@ -2111,6 +2118,7 @@ NTSTATUS InitTrustedProcess()
 	ULONG	nRet = 0;
 	WCHAR	Buff[514] = {0};
 	PCHAR	pBuff;
+	PCHAR	pFile;
 	ULONG	Hash;
 	UNICODE_STRING	szFileName;
 	PSYSTEM_PROCESSES pInfo;
@@ -2131,10 +2139,10 @@ NTSTATUS InitTrustedProcess()
 		if (pInfo->ProcessId==0 || pInfo->ProcessId==4)	goto _label;
 		status = ZwQueryInformationProcess(Pid2ProcessHandle(pInfo->ProcessId),ProcessImageFileName,&szFileName,1028,&nRet);
 		if (!NT_SUCCESS(status))	goto _label;
-		pBuff = ReadFile(&szFileName,HASHSIZE);
-		if (!pBuff)		goto _label;
-		Hash = GetHash(pBuff,HASHSIZE);
-
+		pFile = ReadFile(&szFileName,HASHSIZE);
+		if (!pFile)		goto _label;
+		Hash = GetHash(pFile,HASHSIZE);
+		ExFreePool(pFile);
 		pEntryNow = TrustedProcListHdr.Flink;
 		while (pEntryNow != &TrustedProcListHdr)
 		{
