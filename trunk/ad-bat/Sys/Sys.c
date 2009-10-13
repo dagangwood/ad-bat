@@ -250,6 +250,9 @@ NTSTATUS InitSsdtHook()
 	//NtDuplicateObject()
 	HookFunc[NtDuplicateObject].ZwIndex = HOOK_INDEX(ZwDuplicateObject);
 	HookFunc[NtDuplicateObject].NewFunc = NewDuplicateObject;
+	//NtCreateSection
+	HookFunc[NtCreateSection].ZwIndex = HOOK_INDEX(ZwCreateSection);
+	HookFunc[NtCreateSection].NewFunc = NewCreateSection;
 
 	//使SSDT表可写,并保存可写的首地址
 	pMdl = MmCreateMdl(NULL,KeServiceDescriptorTable.ServiceTableBase,KeServiceDescriptorTable.NumberOfServices*4);
@@ -706,6 +709,7 @@ NTSTATUS NewCreateProcess(__out PHANDLE ProcessHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	NTCREATEPROCESS OldNtFunc = HookFunc[NtCreateProcess].NtFunc;
+	goto _label;
 	//DbgPrint("NewCreateProcess() Function...\n");
 
 	//是否在可信进程列表中？
@@ -752,12 +756,13 @@ NTSTATUS NewCreateProcessEx(__out PHANDLE ProcessHandle,
 	Event* pEvent = &LocalEvent;
 	NTSTATUS status;
 	PCHAR pBuffer;
-	ULONG Hash;
+	ULONG Hash = 0;
 	PLIST_ENTRY pEntryNow;
 	ProcListItem* pItemNow;
 	UNICODE_STRING	szFileName;
 	NTCREATEPROCESSEX OldNtFunc = HookFunc[NtCreateProcessEx].NtFunc;
 	BOOLEAN bTrustedProcess = FALSE;
+	goto _label;
 	//DbgPrint("NewCreateProcessEx() Function...\n");
 
 	//创建的是否为可信进程
@@ -768,14 +773,16 @@ NTSTATUS NewCreateProcessEx(__out PHANDLE ProcessHandle,
 	pEvent->Behavior = NtCreateProcessEx;
 	Handle2Target(pEvent,SectionHandle);
 	status = ZwQueryInformationProcess(SectionHandle,ProcessImageFileName,&szFileName,NULL,NULL);
-	if (!NT_SUCCESS(status))
+	if (NT_SUCCESS(status))
 	{
-		DbgPrint("NewCreateProcessEx ZwQueryInformationProcess Error!\n");
-		return status;
+		pBuffer = ReadFile(&szFileName,HASHSIZE);
+		Hash = GetHash(pBuffer,HASHSIZE);
+		ExFreePool(pBuffer);
 	}
-	pBuffer = ReadFile(&szFileName,HASHSIZE);
-	Hash = GetHash(pBuffer,HASHSIZE);
-	ExFreePool(pBuffer);
+	else
+	{
+		Hash = NULL;
+	}
 
 	pEntryNow = TrustedProcListHdr.Flink;
 	while (pEntryNow != &TrustedProcListHdr)
@@ -1123,6 +1130,94 @@ _label:
 	return status;
 }
 
+//	NtCreateSection()
+NTSTATUS NewCreateSection( __out PHANDLE SectionHandle, 
+						  __in ACCESS_MASK DesiredAccess,
+						  __in_opt POBJECT_ATTRIBUTES ObjectAttributes, 
+						  __in_opt PLARGE_INTEGER MaximumSize, 
+						  __in ULONG SectionPageProtection,
+						  __in ULONG AllocationAttributes,
+						  __in_opt HANDLE FileHandle )
+{
+	Event	LocalEvent;
+	Event* pEvent = &LocalEvent;
+	NTSTATUS status;
+	PVOID pObject = NULL;
+	PCHAR pBuffer;
+	ULONG Hash;
+	PLIST_ENTRY pEntryNow;
+	ProcListItem* pItemNow;
+	BOOLEAN bTrustedProcess = FALSE;
+	UNICODE_STRING	szFileName;
+	NTCREATESECTION OldNtFunc = HookFunc[NtCreateSection].NtFunc;
+
+	//是否为进程执行行为
+	if (SectionPageProtection & (PAGE_EXECUTE|PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_EXECUTE_WRITECOPY) == NULL)
+		goto _label;
+
+	//判断是否为可信进程被执行
+	status = ObReferenceObjectByHandle(FileHandle,NULL,NULL,KernelMode,&pObject,NULL);
+	if (!NT_SUCCESS(status) || pObject==NULL)
+	{
+		return status;
+	}
+	//status = RtlVolumeDeviceToDosName(pObject,pUnsiString);
+	status = ObQueryNameString(pObject,&szFileName,512,NULL);
+	if (!NT_SUCCESS(status))
+	{
+		ObDereferenceObject(pObject);
+		return status;
+	}
+	pBuffer = ReadFile(&szFileName,HASHSIZE);
+	Hash = GetHash(pBuffer,HASHSIZE);
+	pEntryNow = TrustedProcListHdr.Flink;
+	while (pEntryNow != &TrustedProcListHdr)
+	{
+		pItemNow = CONTAINING_RECORD(pEntryNow,ProcListItem,ListEntry);
+		if (pItemNow->Hash == Hash)
+		{
+			bTrustedProcess = TRUE;
+			goto _label;
+		}
+		pEntryNow = pEntryNow->Flink;
+	}
+
+	//是否在可信进程列表中？
+	if (IsTrustedProcess())		goto _label;
+
+	//填充行为记录结构体
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Pid		 = PsGetCurrentProcessId();
+	pEvent->Type	 = EVENT_TPYE_PROC;
+	pEvent->Behavior = NtCreateSection;
+	Handle2Target(pEvent,FileHandle);
+
+	//用户层判断结果？
+	if (JudgeByUser(pEvent))		goto _label;
+
+	//禁止执行
+	return STATUS_ACCESS_DENIED;
+
+_label:
+	status = OldNtFunc(SectionHandle,
+						DesiredAccess,
+						ObjectAttributes,
+						MaximumSize,
+						SectionPageProtection,
+						AllocationAttributes,
+						FileHandle);
+	if (bTrustedProcess)
+	{
+		pItemNow = ExAllocateFromNPagedLookasideList(&nPagedList);
+		pItemNow->Hash = Hash;
+		pItemNow->Pid = ProcessHandle2Pid(*SectionHandle);
+		pItemNow->Type = '+';
+		InsertTailList(&TrustedProcListHdr,&pItemNow->ListEntry);
+	}
+	return status;
+}
+
+
 
 //获得SSDT的未导出API地址
 NTSTATUS GetSsdtApi(PCHAR szApiName,PUNICODE_STRING szDll)
@@ -1240,6 +1335,7 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 			SsdtHook(&HookFunc[NtTerminateThread],TRUE);
 			SsdtHook(&HookFunc[NtQueueApcThread],TRUE);
 			SsdtHook(&HookFunc[NtWriteVirtualMemory],TRUE);
+			SsdtHook(&HookFunc[NtCreateSection],TRUE);
 		}
 		break;
 	case PROC_OFF:
@@ -1254,6 +1350,7 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT pDeviceObject,PIRP pIrp)
 			SsdtHook(&HookFunc[NtTerminateThread],FALSE);
 			SsdtHook(&HookFunc[NtQueueApcThread],FALSE);
 			SsdtHook(&HookFunc[NtWriteVirtualMemory],FALSE);
+			SsdtHook(&HookFunc[NtCreateSection],FALSE);
 		}
 		break;
 	case REG_ON:
@@ -2285,6 +2382,11 @@ VOID EventDisplay(Event* pEvent)
 	case NtDuplicateObject:		
 		{
 			RtlCopyMemory(szFuncName,"NtDuplicateObject",128);
+		}
+		break;
+	case NtCreateSection:
+		{
+			RtlCopyMemory(szFuncName,"NtCreateSection",128);
 		}
 		break;
 	}

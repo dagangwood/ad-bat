@@ -7,7 +7,7 @@
 #define MAX_PATH 260
 
 //Hook函数个数
-#define HOOKNUMS	18
+#define HOOKNUMS	19
 //EXE Hash 长度
 #define HASHSIZE	4096
 
@@ -22,16 +22,17 @@
 #define NtCreateFile			0x05
 #define NtWriteFile				0x06
 #define NtSetInformationFile	0x07
-#define NtOpenProcess			0x08	//Y
+#define NtOpenProcess			0x08
 #define NtCreateProcess			0x09
-#define NtCreateProcessEx		0x0A	//X
-#define NtTerminateProcess		0x0B	//XY
-#define NtCreateThread			0x0C	//Y
-#define NtTerminateThread		0x0D	//Y
+#define NtCreateProcessEx		0x0A
+#define NtTerminateProcess		0x0B
+#define NtCreateThread			0x0C
+#define NtTerminateThread		0x0D
 #define NtQueueApcThread		0x0E
-#define NtWriteVirtualMemory	0x0F	//Y
+#define NtWriteVirtualMemory	0x0F
 #define NtSetSystemInformation	0x10
-#define NtDuplicateObject		0x11	//Y
+#define NtDuplicateObject		0x11
+#define NtCreateSection			0x12
 
 //Io控制码
 //Io控制码
@@ -476,3 +477,23 @@ NTSYSAPI NTSTATUS NTAPI ZwDuplicateObject(__in HANDLE SourceProcessHandle,
 										  __in ACCESS_MASK DesiredAccess,
 										  __in ULONG Attributes,
 										  __in ULONG Options);
+
+
+// NtCreateSection
+typedef NTSTATUS (*NTCREATESECTION)( __out PHANDLE SectionHandle, 
+									__in ACCESS_MASK DesiredAccess, 
+									__in_opt POBJECT_ATTRIBUTES ObjectAttributes,
+									__in_opt PLARGE_INTEGER MaximumSize,
+									__in ULONG SectionPageProtection,
+									__in ULONG AllocationAttributes, 
+									__in_opt HANDLE FileHandle );
+
+//NTCREATESECTION ZwCreateSection = NULL;
+
+NTSTATUS NewCreateSection( __out PHANDLE SectionHandle, 
+						  __in ACCESS_MASK DesiredAccess, 
+						  __in_opt POBJECT_ATTRIBUTES ObjectAttributes,
+						  __in_opt PLARGE_INTEGER MaximumSize,
+						  __in ULONG SectionPageProtection,
+						  __in ULONG AllocationAttributes, 
+						  __in_opt HANDLE FileHandle );
