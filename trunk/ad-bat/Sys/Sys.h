@@ -168,7 +168,8 @@ ULONG	ProcessHandle2Pid(HANDLE ProcessHanle);
 ULONG	ThreadHandle2Pid(HANDLE ThreadHandle);
 //进程PID得到进程句柄
 HANDLE  Pid2ProcessHandle(ULONG Pid);
-
+//对比函数
+ULONG CompareMemoryNoSenstive(PCHAR Buff1,PCHAR Buff2,ULONG ByteLen);
 
 //从指定文件读取规则库
 NTSTATUS ReadRules(PUNICODE_STRING pFileName,PLIST_ENTRY	pListHdr);
