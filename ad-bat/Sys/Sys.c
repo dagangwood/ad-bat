@@ -2485,7 +2485,7 @@ ULONG atoi(PCHAR pBuffer)
 
 	while (*pBuffer>='0' && *pBuffer<='9')
 	{
-		num = num*10 + (pBuffer-'0');
+		num = num*10 + (*pBuffer-'0');
 		pBuffer++;
 	}
 
