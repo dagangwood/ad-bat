@@ -835,7 +835,6 @@ NTSTATUS NewTerminateProcess(__in_opt HANDLE ProcessHandle,
 	PLIST_ENTRY pEntryNow;
 	ProcListItem* pListItemNow;
 	Event* pEvent = &LocalEvent;
-
 	NTTERMINATEPROCESS OldNtFunc = HookFunc[NtTerminateProcess].NtFunc;
 	ULONG Pid = ProcessHandle2Pid(ProcessHandle);
 	//DbgPrint("NewTerminateProcess() Function...\n");
@@ -2484,9 +2483,9 @@ ULONG atoi(PCHAR pBuffer)
 {
 	ULONG num = 0;
 
-	while (*pBuffer>=0 && *pBuffer<=9)
+	while (*pBuffer>='0' && *pBuffer<='9')
 	{
-		num = num*10 + pBuffer;
+		num = num*10 + (pBuffer-'0');
 		pBuffer++;
 	}
 
