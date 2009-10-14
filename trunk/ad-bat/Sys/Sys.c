@@ -866,7 +866,7 @@ _label:
 			pListItemNow = CONTAINING_RECORD(pEntryNow,ProcListItem,ListEntry);
 			if (pListItemNow->Pid == Pid)
 			{
-				ExFreeToNPagedLookasideList(&nPagedList,RemoveHeadList(pEntryNow));
+				ExFreeToNPagedLookasideList(&nPagedList,RemoveHeadList(pEntryNow->Blink));
 				break;
 			}
 			pEntryNow = pEntryNow->Flink;
@@ -2084,7 +2084,7 @@ NTSTATUS ReadParseProcRules(PUNICODE_STRING pFileName,PLIST_ENTRY pListHdr)
 				pProcListItem->Type = *pBuffer++;
 				while (*pBuffer==' ' || *pBuffer=='\t')	pBuffer++;
 				pProcListItem->Hash = atoi(pBuffer);
-				pBuffer += sizeof(ULONG)+sizeof("\n\r");
+				while (*pBuffer++!='\n');
 				InsertTailList(pListHdr,&pProcListItem->ListEntry);
 			}
 			break;
