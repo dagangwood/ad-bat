@@ -1145,42 +1145,52 @@ NTSTATUS NewCreateSection( __out PHANDLE SectionHandle,
 	PVOID pObject = NULL;
 	PCHAR pBuffer;
 	ULONG Hash;
+	IO_STATUS_BLOCK	iostatus;
+	LARGE_INTEGER	offset = {0};
 	PLIST_ENTRY pEntryNow;
 	ProcListItem* pItemNow;
 	BOOLEAN bTrustedProcess = FALSE;
-	UNICODE_STRING	szFileName;
 	NTCREATESECTION OldNtFunc = HookFunc[NtCreateSection].NtFunc;
 
 	//是否为进程执行行为
 	if (SectionPageProtection & (PAGE_EXECUTE|PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_EXECUTE_WRITECOPY) == NULL)
 		goto _label;
 
-	//判断是否为可信进程被执行
-	status = ObReferenceObjectByHandle(FileHandle,NULL,NULL,KernelMode,&pObject,NULL);
-	if (!NT_SUCCESS(status) || pObject==NULL)
+	////判断是否为可信进程被执行
+	//status = ObReferenceObjectByHandle(FileHandle,NULL,NULL,KernelMode,&pObject,NULL);
+	//if (!NT_SUCCESS(status) || pObject==NULL)
+	//{
+	//	return status;
+	//}
+	////status = RtlVolumeDeviceToDosName(pObject,pUnsiString);
+	//status = ObQueryNameString(pObject,&szFileName,512,NULL);
+	//if (!NT_SUCCESS(status))
+	//{
+	//	ObDereferenceObject(pObject);
+	//	return status;
+	//}
+	//pBuffer = ReadFile(&szFileName,HASHSIZE);
+
+	pBuffer = ExAllocatePool(NonPagedPool,HASHSIZE);
+	RtlZeroMemory(pBuffer,HASHSIZE);
+	//读取文件
+	status = ZwReadFile(FileHandle,NULL,NULL,NULL,&iostatus,pBuffer,HASHSIZE,&offset,NULL);
+	if (NT_SUCCESS(status))
 	{
-		return status;
-	}
-	//status = RtlVolumeDeviceToDosName(pObject,pUnsiString);
-	status = ObQueryNameString(pObject,&szFileName,512,NULL);
-	if (!NT_SUCCESS(status))
-	{
-		ObDereferenceObject(pObject);
-		return status;
-	}
-	pBuffer = ReadFile(&szFileName,HASHSIZE);
-	Hash = GetHash(pBuffer,HASHSIZE);
-	pEntryNow = TrustedProcListHdr.Flink;
-	while (pEntryNow != &TrustedProcListHdr)
-	{
-		pItemNow = CONTAINING_RECORD(pEntryNow,ProcListItem,ListEntry);
-		if (pItemNow->Hash == Hash)
+		Hash = GetHash(pBuffer,HASHSIZE);
+		pEntryNow = TrustedProcListHdr.Flink;
+		while (pEntryNow != &TrustedProcListHdr)
 		{
-			bTrustedProcess = TRUE;
-			goto _label;
+			pItemNow = CONTAINING_RECORD(pEntryNow,ProcListItem,ListEntry);
+			if (pItemNow->Hash == Hash)
+			{
+				bTrustedProcess = TRUE;
+				goto _label;
+			}
+			pEntryNow = pEntryNow->Flink;
 		}
-		pEntryNow = pEntryNow->Flink;
 	}
+	ExFreePool(pBuffer);
 
 	//是否在可信进程列表中？
 	if (IsTrustedProcess())		goto _label;
@@ -1188,9 +1198,10 @@ NTSTATUS NewCreateSection( __out PHANDLE SectionHandle,
 	//填充行为记录结构体
 	RtlZeroMemory(pEvent,sizeof(Event));
 	pEvent->Pid		 = PsGetCurrentProcessId();
-	pEvent->Type	 = EVENT_TPYE_PROC;
+	pEvent->Type	 = EVENT_TPYE_FILE;
 	pEvent->Behavior = NtCreateSection;
 	Handle2Target(pEvent,FileHandle);
+	pEvent->Type	 = EVENT_TPYE_PROC;
 
 	//用户层判断结果？
 	if (JudgeByUser(pEvent))		goto _label;
