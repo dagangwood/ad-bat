@@ -36,7 +36,6 @@ KMUTEX IoJudgeMutex;
 ULONG	hGlobalSelfProcHandle = NULL;
 ULONG	dwGlobalSelfPid		  = NULL;
 
-
 //文件、注册表规则库头指针
 LIST_ENTRY	FileListHdr;
 LIST_ENTRY	RegListHdr;
@@ -1144,6 +1143,7 @@ NTSTATUS NewCreateSection( __out PHANDLE SectionHandle,
 	NTSTATUS status;
 	PVOID pObject = NULL;
 	PCHAR pBuffer;
+	ULONG	len;
 	ULONG Hash;
 	IO_STATUS_BLOCK	iostatus;
 	LARGE_INTEGER	offset = {0};
@@ -1156,20 +1156,20 @@ NTSTATUS NewCreateSection( __out PHANDLE SectionHandle,
 	if (SectionPageProtection & (PAGE_EXECUTE|PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_EXECUTE_WRITECOPY) == NULL)
 		goto _label;
 
-	////判断是否为可信进程被执行
-	//status = ObReferenceObjectByHandle(FileHandle,NULL,NULL,KernelMode,&pObject,NULL);
-	//if (!NT_SUCCESS(status) || pObject==NULL)
-	//{
-	//	return status;
-	//}
-	////status = RtlVolumeDeviceToDosName(pObject,pUnsiString);
-	//status = ObQueryNameString(pObject,&szFileName,512,NULL);
-	//if (!NT_SUCCESS(status))
-	//{
-	//	ObDereferenceObject(pObject);
-	//	return status;
-	//}
-	//pBuffer = ReadFile(&szFileName,HASHSIZE);
+	//填充行为记录结构体
+	RtlZeroMemory(pEvent,sizeof(Event));
+	pEvent->Pid		 = PsGetCurrentProcessId();
+	pEvent->Type	 = EVENT_TPYE_FILE;
+	pEvent->Behavior = NtCreateSection;
+	Handle2Target(pEvent,FileHandle);
+	pEvent->Type	 = EVENT_TPYE_PROC;
+	RtlStringCbLengthA(pEvent->Target,MAX_PATH+1,&len);
+	if (CompareMemoryNoSenstive(pEvent->Target+len-4,".exe",4)!=4
+		||CompareMemoryNoSenstive(pEvent->Target+len-4,".dll",4)!=4
+		||CompareMemoryNoSenstive(pEvent->Target+len-4,".sys",4)!=4)
+	{
+		goto _label;
+	}
 
 	pBuffer = ExAllocatePool(NonPagedPool,HASHSIZE);
 	RtlZeroMemory(pBuffer,HASHSIZE);
@@ -1194,14 +1194,6 @@ NTSTATUS NewCreateSection( __out PHANDLE SectionHandle,
 
 	//是否在可信进程列表中？
 	if (IsTrustedProcess())		goto _label;
-
-	//填充行为记录结构体
-	RtlZeroMemory(pEvent,sizeof(Event));
-	pEvent->Pid		 = PsGetCurrentProcessId();
-	pEvent->Type	 = EVENT_TPYE_FILE;
-	pEvent->Behavior = NtCreateSection;
-	Handle2Target(pEvent,FileHandle);
-	pEvent->Type	 = EVENT_TPYE_PROC;
 
 	//用户层判断结果？
 	if (JudgeByUser(pEvent))		goto _label;
@@ -1677,18 +1669,26 @@ BOOLEAN IsInWhiteList(Event* pEvent)
 BOOLEAN JudgeByUser(Event* pEvent)
 {
 	//TODO.. 与用户层及分发函数进行交互，待定...
-	EventDisplay(pEvent);
-/*
+	static Event EventBefore = {0};
+	static BOOLEAN RstBefore = FALSE;
 	BOOLEAN JudgeRst;
 
+	EventDisplay(pEvent);
+
 	KeWaitForSingleObject(&IoJudgeMutex,Executive,KernelMode,FALSE,NULL);
+	if (RtlCompareMemory(pEvent,&EventBefore,sizeof(Event))==sizeof(Event))
+	{
+		return RstBefore;
+	}
 	RtlCopyMemory(IoBuff,pEvent,sizeof(Event));
 	KeSetEvent((PKEVENT)IoEventObject,0,0);
 	KeWaitForSingleObject((PKEVENT)JudgeEventObject,Executive,KernelMode,0,0);
 	KeResetEvent((PKEVENT)JudgeEventObject);
 	RtlCopyMemory(&JudgeRst,JudgeBuff,sizeof(BOOLEAN));
+	EventBefore = *pEvent;
+	RstBefore = JudgeRst;
 	KeReleaseMutex(&IoJudgeMutex,FALSE);
-*/
+
 	return TRUE;
 }
 
@@ -1704,13 +1704,15 @@ NTSTATUS GetDosPath(PCHAR pString)
 
 	RtlStringCbLengthA(pString,MAX_PATH+1,&Stringlen);
 
-	if (RtlCompareMemory(pString,"\\??\\",4)==4)
+	if (CompareMemoryNoSenstive(pString,"\\??\\",4)==4)
 	{
 		RtlCopyMemory(pString,pString+4,Stringlen-4);
 		RtlZeroMemory(pString+Stringlen-4,4);
 		return STATUS_SUCCESS;
 	}
-	if (RtlCompareMemory(pString,"\\DEVICE\\HARDDISKVOLUME",22)==22)
+
+
+	if (CompareMemoryNoSenstive(pString,"\\DEVICE\\HARDDISKVOLUME",22)==22)
 	{
 		RtlCopyMemory(pString,pString+21,Stringlen-21);
 		RtlZeroMemory(pString+Stringlen-21,21);
@@ -2503,4 +2505,21 @@ ULONG atoi(PCHAR pBuffer)
 	}
 
 	return num;
+}
+
+//对比函数
+ULONG CompareMemoryNoSenstive(PCHAR Buff1,PCHAR Buff2,ULONG ByteLen)
+{
+	ULONG index = 0;
+	PCHAR BuffTemp1 = ExAllocatePool(NonPagedPool,ByteLen);
+	PCHAR BuffTemp2 = ExAllocatePool(NonPagedPool,ByteLen);
+	for(index = 0;index<ByteLen;index++)
+	{
+		BuffTemp1[index] = Buff1[index]|0x20;
+		BuffTemp2[index] = Buff2[index]|0x20;
+	}
+	index = RtlCompareMemory(BuffTemp1,BuffTemp2,ByteLen);
+	ExFreePool(BuffTemp1);
+	ExFreePool(BuffTemp2);
+	return index;
 }
