@@ -1,0 +1,35 @@
+﻿<Window x:Class="AdBAT.WarnWin"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="WarnWin" Height="300" Width="400" WindowStyle="None" ResizeMode="NoResize" Loaded="Window_Loaded" Background="{x:Null}"  AllowsTransparency="True" Icon="/Ad-BAT;component/Resources/Default.ico">
+    <Grid>
+        <Border CornerRadius="10,10,10,10" BorderThickness="1" OpacityMask="{x:Null}" Margin="0,0,0,0">
+            <Border.Background>
+                <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
+                    <GradientStop Color="#FF000000" Offset="0.522"/>
+                    <GradientStop Color="#FFFFFFFF" Offset="1"/>
+                    <GradientStop Color="#FFDB3232" Offset="0"/>
+                    <GradientStop Color="#FFCB0707" Offset="0.996"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <Border.BorderBrush>
+                <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
+                    <GradientStop Color="#FF000000" Offset="0"/>
+                    <GradientStop Color="#FFFFFFFF" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.BorderBrush>
+        </Border>
+        <Grid Margin="0,-2.499,0,0">
+                    <Button Height="23" Margin="0,0,19,17" Name="OK_Btn" VerticalAlignment="Bottom" Click="OK_Btn_Click" HorizontalAlignment="Right" Width="75">完成</Button>
+            <TextBox Margin="124,10,19,71" Name="Message_tb" Background="Transparent" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Focusable="True" IsReadOnly="True" IsTabStop="False" BorderThickness="0" TextWrapping="Wrap">/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAAQABADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDTj+DGjTRI0Wi6ftYBgz39yDgjuBkVYT4KaKikzaFp3ljlmTUbrIHcgdM/WpLH42eDI7G2WS+uVkESB1Nq+VOBkHGRn6EirEnxw8FGCRF1CfcykDNq+M4+lVfyI5fM/9k=</TextBox>
+            <RadioButton Height="30" HorizontalAlignment="Left" Margin="17,0,0,10" Name="Deny_rbtn" VerticalAlignment="Bottom" Width="79" IsChecked="True">拒绝</RadioButton>
+            <RadioButton Height="30" Margin="89,0,0,10" Name="Allow_rbtn" VerticalAlignment="Bottom" HorizontalAlignment="Left" Width="79">允许</RadioButton>
+            <RadioButton Height="30" Margin="174,0,125,10" Name="Next_rbtn" VerticalAlignment="Bottom">下次再提醒</RadioButton>
+            <Image Margin="17,10,0,0" Name="image1" Stretch="Fill" HorizontalAlignment="Left" Width="101" Source="/Ad-BAT;component/Resources/FirewallWarnning.ico" Height="103" VerticalAlignment="Top" />
+            <Label HorizontalAlignment="Left" Margin="31,0,0,87.264" Name="time_la" Width="65" Foreground="AntiqueWhite" Height="28.159" VerticalAlignment="Bottom"></Label>
+            <Label HorizontalAlignment="Left" Margin="17,0,0,111.807" Name="label1" Width="79" Foreground="AliceBlue" Height="24.523" VerticalAlignment="Bottom">Ad-BAT将在</Label>
+            <Label HorizontalAlignment="Left" Margin="17,0,0,66.357" Name="label2" Width="89" Height="24.523" VerticalAlignment="Bottom">执行以下操作</Label>
+        </Grid>
+
+    </Grid>
+</Window>
