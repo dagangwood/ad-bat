@@ -1881,21 +1881,7 @@ HANDLE  Pid2ProcessHandle(ULONG Pid)
 	NTSTATUS status;
 	PEPROCESS	pEprocess;
 	HANDLE		ProcessHandle;
-	//OBJECT_ATTRIBUTES	ObjAttributes;
-	//CLIENT_ID	ClId;
-	//HANDLE	Handle = NULL;
-	//NTOPENPROCESS OldNtFunc = HookFunc[NtOpenProcess].NtFunc;
-	//RtlZeroMemory(&ClId,sizeof(CLIENT_ID));
 
-	//InitializeObjectAttributes(&ObjAttributes,NULL,NULL,NULL,NULL);
-	//ClId.UniqueProcess	= Pid;
-
-	//status = OldNtFunc(&Handle,NULL,&ObjAttributes,&ClId);
-	//if (!NT_SUCCESS(status))
-	//{
-	//	DbgPrint("NtOpenProcess Error! PID:%d\n",ClId.UniqueProcess);
-	//	return -1;
-	//}
 	status = PsLookupProcessByProcessId(Pid,&pEprocess);
 	if (!NT_SUCCESS(status))
 	{
