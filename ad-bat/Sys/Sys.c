@@ -1671,23 +1671,23 @@ BOOLEAN JudgeByUser(Event* pEvent)
 	//TODO.. 与用户层及分发函数进行交互，待定...
 	static Event EventBefore = {0};
 	static BOOLEAN RstBefore = FALSE;
-	BOOLEAN JudgeRst;
+	BOOLEAN JudgeRst = TRUE;
 
 	EventDisplay(pEvent);
 
-	KeWaitForSingleObject(&IoJudgeMutex,Executive,KernelMode,FALSE,NULL);
+	//KeWaitForSingleObject(&IoJudgeMutex,Executive,KernelMode,FALSE,NULL);
 	if (RtlCompareMemory(pEvent,&EventBefore,sizeof(Event))==sizeof(Event))
 	{
 		return RstBefore;
 	}
-	RtlCopyMemory(IoBuff,pEvent,sizeof(Event));
-	KeSetEvent((PKEVENT)IoEventObject,0,0);
-	KeWaitForSingleObject((PKEVENT)JudgeEventObject,Executive,KernelMode,0,0);
-	KeResetEvent((PKEVENT)JudgeEventObject);
-	RtlCopyMemory(&JudgeRst,JudgeBuff,sizeof(BOOLEAN));
+	//RtlCopyMemory(IoBuff,pEvent,sizeof(Event));
+	//KeSetEvent((PKEVENT)IoEventObject,0,0);
+	//KeWaitForSingleObject((PKEVENT)JudgeEventObject,Executive,KernelMode,0,0);
+	//KeResetEvent((PKEVENT)JudgeEventObject);
+	//RtlCopyMemory(&JudgeRst,JudgeBuff,sizeof(BOOLEAN));
 	EventBefore = *pEvent;
 	RstBefore = JudgeRst;
-	KeReleaseMutex(&IoJudgeMutex,FALSE);
+	//KeReleaseMutex(&IoJudgeMutex,FALSE);
 
 	return TRUE;
 }
