@@ -837,6 +837,7 @@ NTSTATUS NewTerminateProcess(__in_opt HANDLE ProcessHandle,
 	Event* pEvent = &LocalEvent;
 	NTTERMINATEPROCESS OldNtFunc = HookFunc[NtTerminateProcess].NtFunc;
 	ULONG Pid = ProcessHandle2Pid(ProcessHandle);
+	if (Pid == 0xFFFFFFFF)		goto _label;
 	//DbgPrint("NewTerminateProcess() Function...\n");
 
 	//是否在可信进程列表中？
@@ -858,7 +859,7 @@ NTSTATUS NewTerminateProcess(__in_opt HANDLE ProcessHandle,
 _label:
 	status = OldNtFunc(ProcessHandle,
 					   ExitStatus);
-	if (status==STATUS_SUCCESS)
+	if (status==STATUS_SUCCESS && Pid!=0xFFFFFFFF)
 	{
 		pEntryNow = TrustedProcListHdr.Flink;
 		while(pEntryNow != &TrustedProcListHdr)
@@ -1672,8 +1673,6 @@ BOOLEAN JudgeByUser(Event* pEvent)
 	static BOOLEAN RstBefore = FALSE;
 	BOOLEAN JudgeRst = TRUE;
 
-	EventDisplay(pEvent);
-
 	//KeWaitForSingleObject(&IoJudgeMutex,Executive,KernelMode,FALSE,NULL);
 	if (RtlCompareMemory(pEvent,&EventBefore,sizeof(Event))==sizeof(Event))
 	{
@@ -1687,6 +1686,8 @@ BOOLEAN JudgeByUser(Event* pEvent)
 	EventBefore = *pEvent;
 	RstBefore = JudgeRst;
 	//KeReleaseMutex(&IoJudgeMutex,FALSE);
+	
+	EventDisplay(pEvent);
 
 	return TRUE;
 }
